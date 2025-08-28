@@ -43,7 +43,7 @@ class CompilerPackage(PackageBase):
     compiler_version_argument: Union[str, Tuple[str, ...]] = "-dumpversion"
 
     #: Regex used to extract version from compiler's output
-    compiler_version_regex: str = "(.*)"
+    compiler_version_regex: Union[str, re.Pattern] = re.compile("(.*)")
 
     #: Static definition of languages supported by this class
     compiler_languages: Sequence[str] = ["c", "cxx", "fortran"]

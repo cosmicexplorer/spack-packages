@@ -414,6 +414,7 @@ class Openjdk(Package):
         description=("symlink system certs if requested, otherwise use default package version"),
     )
 
+    provides("java@24", when="@24.0:24")
     provides("java@21", when="@21.0:21")
     provides("java@17", when="@17.0:17")
     provides("java@16", when="@16.0:16")
@@ -522,6 +523,12 @@ class Openjdk(Package):
         """Set JAVA_HOME."""
 
         env.set("JAVA_HOME", self.home)
+
+    """
+==> [2025-08-04-17:16:46.680140] Warning: Different requests to set/unset 'JAVA_HOME' have been found
+==> [2025-08-04-17:16:46.680180] Warning:               env.set("JAVA_HOME", self.home) at /home/cosmicexplorer/spack-repos/spack-packages/repos/spack_repo/builtin/packages/openjdk/package.py:535
+==> [2025-08-04-17:16:46.680203] Warning:       --->    env.set("JAVA_HOME", self.home) at /home/cosmicexplorer/spack-repos/spack-packages/repos/spack_repo/builtin/packages/openjdk/package.py:525
+    """
 
     def setup_dependent_build_environment(
         self, env: EnvironmentModifications, dependent_spec: Spec

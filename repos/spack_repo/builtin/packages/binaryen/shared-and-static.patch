@@ -1,0 +1,262 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0279e7d..c1505e3 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -47,9 +47,11 @@ if(EMSCRIPTEN)
+   set(BUILD_LLVM_DWARF OFF)
+ endif()
+ 
++option(BUILD_SHARED_LIB "Build as a shared library" ON)
+ option(BUILD_STATIC_LIB "Build as a static library" OFF)
+ if(MSVC)
+   # We don't have dllexport declarations set up for Windows yet.
++  set(BUILD_SHARED_LIB OFF)
+   set(BUILD_STATIC_LIB ON)
+ endif()
+ 
+@@ -177,7 +179,11 @@ endfunction()
+ function(binaryen_add_executable name sources)
+   add_executable(${name} ${sources})
+   target_link_libraries(${name} PRIVATE Threads::Threads)
+-  target_link_libraries(${name} PRIVATE binaryen)
++  if(BUILD_SHARED_LIB)
++    target_link_libraries(${name} PRIVATE binaryen)
++  elseif(BUILD_STATIC_LIB)
++    target_link_libraries(${name} PRIVATE binaryen-static)
++  endif()
+   binaryen_setup_rpath(${name})
+   install(TARGETS ${name} DESTINATION ${CMAKE_INSTALL_BINDIR})
+ endfunction()
+@@ -455,35 +461,51 @@ endif()
+ 
+ # Declare libbinaryen
+ 
+-if(BUILD_STATIC_LIB)
+-  message(STATUS "Building libbinaryen as statically linked library.")
+-  add_library(binaryen STATIC)
+-  add_definitions(-DBUILD_STATIC_LIBRARY)
+-else()
++if(BUILD_SHARED_LIB)
+   message(STATUS "Building libbinaryen as shared library.")
+   add_library(binaryen SHARED)
+   if(LINUX)
+     # Disable interposition and resolve Binaryen symbols locally.
++    # NB: this will also apply to exe linker flags, but we always use the shared library when
++    #     creating executables if available, so we will never add this to a statically
++    #     linked executable.
+     add_link_flag("-Bsymbolic")
+   endif()
++  target_link_libraries(binaryen Threads::Threads)
++  if(BUILD_LLVM_DWARF)
++    target_link_libraries(binaryen llvm_dwarf)
++  endif()
+ endif()
+-target_link_libraries(binaryen Threads::Threads)
+-if(BUILD_LLVM_DWARF)
+-  target_link_libraries(binaryen llvm_dwarf)
++if(BUILD_STATIC_LIB)
++  message(STATUS "Building libbinaryen as statically linked library.")
++  add_library(binaryen-static STATIC)
++  target_compile_definitions(binaryen-static PRIVATE BUILD_STATIC_LIBRARY)
++  target_link_libraries(binaryen-static Threads::Threads)
++  if(BUILD_LLVM_DWARF)
++    target_link_libraries(binaryen-static llvm_dwarf)
++  endif()
+ endif()
+ 
+ if(BUILD_MIMALLOC)
+-  if(NOT(CMAKE_SYSTEM_NAME STREQUAL "Linux") OR EMSCRIPTEN)
+-    message(FATAL_ERROR "Linking mimalloc is only supported on Linux.")
+-  endif()
+   message(STATUS "Building with mimalloc allocator.")
+-  if(BUILD_STATIC_LIB)
+-    target_link_libraries(binaryen mimalloc-static)
+-  else()
++  find_package(mimalloc REQUIRED)
++  if(BUILD_SHARED_LIB)
+     target_link_libraries(binaryen mimalloc)
+   endif()
++  if(BUILD_STATIC_LIB)
++    target_link_libraries(binaryen-static mimalloc-static)
++  endif()
+ endif()
+ 
++function(binaryen_sources sources)
++  if(BUILD_SHARED_LIB)
++    target_sources(binaryen PRIVATE ${sources})
++  endif()
++  if(BUILD_STATIC_LIB)
++    target_sources(binaryen-static PRIVATE ${sources})
++  endif()
++endfunction()
++
+ add_subdirectory(src/ir)
+ add_subdirectory(src/asmjs)
+ add_subdirectory(src/cfg)
+@@ -515,15 +537,21 @@ set(binaryen_SOURCES
+   src/binaryen-c.cpp
+   ${binaryen_HEADERS}
+ )
+-target_sources(binaryen PRIVATE ${binaryen_SOURCES})
++binaryen_sources(${binaryen_SOURCES})
+ 
+-if(INSTALL_LIBS OR NOT BUILD_STATIC_LIB)
+-  install(TARGETS binaryen
+-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+-endif()
+ if(INSTALL_LIBS)
++  if(BUILD_SHARED_LIB)
++    install(TARGETS binaryen
++      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
++      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
++      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
++  endif()
++  if(BUILD_STATIC_LIB)
++    install(TARGETS binaryen-static
++      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
++      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
++      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
++  endif()
+   install(FILES src/binaryen-c.h src/wasm-delegations.def DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+ endif()
+ 
+diff --git a/src/analysis/CMakeLists.txt b/src/analysis/CMakeLists.txt
+index 8b843db..215a611 100644
+--- a/src/analysis/CMakeLists.txt
++++ b/src/analysis/CMakeLists.txt
+@@ -3,4 +3,4 @@ set(analysis_SOURCES
+   cfg.cpp
+   ${analysis_HEADERS}
+ )
+-target_sources(binaryen PRIVATE ${analysis_SOURCES})
++binaryen_sources(${analysis_SOURCES})
+diff --git a/src/asmjs/CMakeLists.txt b/src/asmjs/CMakeLists.txt
+index 9f80aa7..d802ba0 100644
+--- a/src/asmjs/CMakeLists.txt
++++ b/src/asmjs/CMakeLists.txt
+@@ -5,4 +5,4 @@ set(asmjs_SOURCES
+   shared-constants.cpp
+   ${asmjs_HEADERS}
+ )
+-target_sources(binaryen PRIVATE ${asmjs_SOURCES})
++binaryen_sources(${asmjs_SOURCES})
+diff --git a/src/cfg/CMakeLists.txt b/src/cfg/CMakeLists.txt
+index 175d5fb..827061a 100644
+--- a/src/cfg/CMakeLists.txt
++++ b/src/cfg/CMakeLists.txt
+@@ -3,4 +3,4 @@ set(cfg_SOURCES
+   Relooper.cpp
+   ${cfg_HEADERS}
+ )
+-target_sources(binaryen PRIVATE ${cfg_SOURCES})
++binaryen_sources(${cfg_SOURCES})
+diff --git a/src/emscripten-optimizer/CMakeLists.txt b/src/emscripten-optimizer/CMakeLists.txt
+index 1279542..edb9605 100644
+--- a/src/emscripten-optimizer/CMakeLists.txt
++++ b/src/emscripten-optimizer/CMakeLists.txt
+@@ -5,4 +5,4 @@ set(emscripten-optimizer_SOURCES
+   simple_ast.cpp
+   ${emscripten-optimizer_HEADERS}
+ )
+-target_sources(binaryen PRIVATE ${emscripten-optimizer_SOURCES})
++binaryen_sources(${emscripten-optimizer_SOURCES})
+diff --git a/src/interpreter/CMakeLists.txt b/src/interpreter/CMakeLists.txt
+index dd0b038..312ee0b 100644
+--- a/src/interpreter/CMakeLists.txt
++++ b/src/interpreter/CMakeLists.txt
+@@ -4,4 +4,4 @@ set(interpreter_SOURCES
+  interpreter.cpp
+  ${interpreter_HEADERS}
+ )
+-target_sources(binaryen PRIVATE ${interpreter_SOURCES})
++binaryen_sources(${interpreter_SOURCES})
+diff --git a/src/ir/CMakeLists.txt b/src/ir/CMakeLists.txt
+index 2dce7c2..3a23af2 100644
+--- a/src/ir/CMakeLists.txt
++++ b/src/ir/CMakeLists.txt
+@@ -26,4 +26,4 @@ set(ir_SOURCES
+   module-splitting.cpp
+   ${ir_HEADERS}
+ )
+-target_sources(binaryen PRIVATE ${ir_SOURCES})
++binaryen_sources(${ir_SOURCES})
+diff --git a/src/parser/CMakeLists.txt b/src/parser/CMakeLists.txt
+index 8b7846c..f1ff75a 100644
+--- a/src/parser/CMakeLists.txt
++++ b/src/parser/CMakeLists.txt
+@@ -12,4 +12,4 @@ set(parser_SOURCES
+  wat-parser.cpp
+  ${parser_HEADERS}
+ )
+-target_sources(binaryen PRIVATE ${parser_SOURCES})
++binaryen_sources(${parser_SOURCES})
+diff --git a/src/passes/CMakeLists.txt b/src/passes/CMakeLists.txt
+index 16891ca..ccbc418 100644
+--- a/src/passes/CMakeLists.txt
++++ b/src/passes/CMakeLists.txt
+@@ -148,4 +148,4 @@ if(EMSCRIPTEN)
+   list(REMOVE_ITEM passes_SOURCES "hash-stringify-walker.cpp")
+   list(REMOVE_ITEM passes_SOURCES "Outlining.cpp")
+ endif()
+-target_sources(binaryen PRIVATE ${passes_SOURCES})
++binaryen_sources(${passes_SOURCES})
+diff --git a/src/support/CMakeLists.txt b/src/support/CMakeLists.txt
+index d264979..6fa45bc 100644
+--- a/src/support/CMakeLists.txt
++++ b/src/support/CMakeLists.txt
+@@ -23,12 +23,12 @@ set(support_SOURCES
+ # suffix_tree_node source files no longer depend on LLVM code in the
+ # third_party folder
+ if(EMSCRIPTEN)
+-  target_sources(binaryen PRIVATE ${support_SOURCES})
++  binaryen_sources(${support_SOURCES})
+ else()
+   set(support_with_suffix_tree_SOURCES
+     suffix_tree.cpp
+     suffix_tree_node.cpp
+     ${support_SOURCES}
+   )
+-  target_sources(binaryen PRIVATE ${support_with_suffix_tree_SOURCES})
++  binaryen_sources(${support_with_suffix_tree_SOURCES})
+ endif()
+diff --git a/src/wasm/CMakeLists.txt b/src/wasm/CMakeLists.txt
+index 07e067c..e75163f 100644
+--- a/src/wasm/CMakeLists.txt
++++ b/src/wasm/CMakeLists.txt
+@@ -17,4 +17,4 @@ set(wasm_SOURCES
+   wasm-validator.cpp
+   ${wasm_HEADERS}
+ )
+-target_sources(binaryen PRIVATE ${wasm_SOURCES})
++binaryen_sources(${wasm_SOURCES})
+diff --git a/third_party/CMakeLists.txt b/third_party/CMakeLists.txt
+index e4f614e..fde5276 100644
+--- a/third_party/CMakeLists.txt
++++ b/third_party/CMakeLists.txt
+@@ -15,24 +15,3 @@ endif()
+ if(BUILD_LLVM_DWARF)
+   add_subdirectory(llvm-project)
+ endif()
+-
+-if(BUILD_MIMALLOC)
+-  # Match static/dynamic linking between libbinaryen and mimalloc
+-  set(MI_BUILD_STATIC ${BUILD_STATIC_LIB})
+-  if (BUILD_STATIC_LIB)
+-    set(MI_BUILD_SHARED OFF)
+-  endif()
+-  set(MI_BUILD_OBJECT OFF)
+-  set(MI_BUILD_TESTS OFF)
+-  set(MI_INSTALL_TOPLEVEL ON)
+-  # Do not show debug and warning messages of the allocator by default.
+-  # (They can still be enabled via MIMALLOC_VERBOSE=1 wasm-opt ...)
+-  add_compile_definitions(MI_DEBUG=0)
+-  
+-  if(BUILD_STATIC_LIB)
+-    # No need to install libmimalloc.a when it's linked statically into the tools.
+-    add_subdirectory(mimalloc EXCLUDE_FROM_ALL)
+-  else()
+-    add_subdirectory(mimalloc)
+-  endif()
+-endif()

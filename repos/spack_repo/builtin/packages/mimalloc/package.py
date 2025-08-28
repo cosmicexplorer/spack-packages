@@ -57,6 +57,34 @@ class Mimalloc(CMakePackage):
         description="Build shared, static, or object libraries",
     )
 
+    # FIXME: this page (https://spack.readthedocs.io/en/latest/packaging_guide_creation.html#home-command-headers-and-libs)
+    #        states that `command`, `headers`, and `libs` are provided by default on every package.
+    #        They absolutely are not.
+    @property
+    def headers(self):
+        return find_all_headers(self.prefix)
+
+    @property
+    def libs(self):
+        # The static library is not always found in the root dir, so recursive=True.
+        return find_all_libraries(self.prefix, recursive=True)
+
+    # 2.0.4 was the first release to switch static output to the object dir.
+    @when("@2.0.4: libs=static")
+    def patch(self):
+        """Make the static library visible in the pkg-config directory instead of putting it in the
+        object dir."""
+        # This separation is specifically done because windows doesn't like having the static
+        # library in the same directory as the DLL. Windows also doesn't use pkg-config, so it
+        # doesn't need this.
+        if not self.spec.satisfies("platform=windows"):
+            filter_file(
+                "install(TARGETS mimalloc-static EXPORT mimalloc DESTINATION ${mi_install_objdir} LIBRARY)",
+                "install(TARGETS mimalloc-static EXPORT mimalloc DESTINATION ${CMAKE_INSTALL_LIBDIR} LIBRARY)",
+                "CMakeLists.txt",
+                string=True,
+            )
+
     mimalloc_options = {
         "secure": (
             False,
