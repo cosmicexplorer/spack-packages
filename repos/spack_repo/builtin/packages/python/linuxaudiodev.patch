@@ -1,0 +1,17 @@
+diff --git a/setup.py b/setup.py
+index f764223d062..4aac13c1de3 100644
+--- a/setup.py
++++ b/setup.py
+@@ -1659,11 +1659,7 @@ class PyBuildExt(build_ext):
+ 
+ 
+         # Platform-specific libraries
+-        if host_platform == 'linux2':
+-            # Linux-specific modules
+-            exts.append( Extension('linuxaudiodev', ['linuxaudiodev.c']) )
+-        else:
+-            missing.append('linuxaudiodev')
++        missing.append('linuxaudiodev')
+ 
+         if (host_platform in ('linux2', 'freebsd4', 'freebsd5', 'freebsd6',
+                         'freebsd7', 'freebsd8')

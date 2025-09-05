@@ -1,0 +1,83 @@
+diff --git a/setup.py b/setup.py
+index da67731aa19..aa3e3a84d4b 100644
+--- a/setup.py
++++ b/setup.py
+@@ -1273,75 +1273,12 @@ class PyBuildExt(build_ext):
+             # Jeremy Hylton's rlimit interface
+             exts.append( Extension('resource', ['resource.c']) )
+ 
+-            # Sun yellow pages. Some systems have the functions in libc.
+-            if (host_platform not in ['cygwin', 'qnx6'] and
+-                find_file('rpcsvc/yp_prot.h', inc_dirs, []) is not None):
+-                if (self.compiler.find_library_file(lib_dirs, 'nsl')):
+-                    libs = ['nsl']
+-                else:
+-                    libs = []
+-                exts.append( Extension('nis', ['nismodule.c'],
+-                                       libraries = libs) )
+-            else:
+-                missing.append('nis')
++            missing.append('nis')
+         else:
+             missing.extend(['nis', 'resource', 'termios'])
+ 
+-        # Curses support, requiring the System V version of curses, often
+-        # provided by the ncurses library.
+-        curses_defines = []
+-        curses_includes = []
+-        panel_library = 'panel'
+-        if curses_library == 'ncursesw':
+-            curses_defines.append(('HAVE_NCURSESW', '1'))
+-            curses_includes.append('/usr/include/ncursesw')
+-            # Bug 1464056: If _curses.so links with ncursesw,
+-            # _curses_panel.so must link with panelw.
+-            panel_library = 'panelw'
+-            if host_platform == 'darwin':
+-                # On OS X, there is no separate /usr/lib/libncursesw nor
+-                # libpanelw.  If we are here, we found a locally-supplied
+-                # version of libncursesw.  There should be also be a
+-                # libpanelw.  _XOPEN_SOURCE defines are usually excluded
+-                # for OS X but we need _XOPEN_SOURCE_EXTENDED here for
+-                # ncurses wide char support
+-                curses_defines.append(('_XOPEN_SOURCE_EXTENDED', '1'))
+-        elif host_platform == 'darwin' and curses_library == 'ncurses':
+-            # Building with the system-suppied combined libncurses/libpanel
+-            curses_defines.append(('HAVE_NCURSESW', '1'))
+-            curses_defines.append(('_XOPEN_SOURCE_EXTENDED', '1'))
+-
+-        if curses_library.startswith('ncurses'):
+-            curses_libs = [curses_library]
+-            exts.append( Extension('_curses', ['_cursesmodule.c'],
+-                                   include_dirs=curses_includes,
+-                                   define_macros=curses_defines,
+-                                   libraries = curses_libs) )
+-        elif curses_library == 'curses' and host_platform != 'darwin':
+-                # OSX has an old Berkeley curses, not good enough for
+-                # the _curses module.
+-            if (self.compiler.find_library_file(lib_dirs, 'terminfo')):
+-                curses_libs = ['curses', 'terminfo']
+-            elif (self.compiler.find_library_file(lib_dirs, 'termcap')):
+-                curses_libs = ['curses', 'termcap']
+-            else:
+-                curses_libs = ['curses']
+-
+-            exts.append( Extension('_curses', ['_cursesmodule.c'],
+-                                   define_macros=curses_defines,
+-                                   libraries = curses_libs) )
+-        else:
+-            missing.append('_curses')
+-
+-        # If the curses module is enabled, check for the panel module
+-        if (module_enabled(exts, '_curses') and
+-            self.compiler.find_library_file(lib_dirs, panel_library)):
+-            exts.append( Extension('_curses_panel', ['_curses_panel.c'],
+-                                   include_dirs=curses_includes,
+-                                   define_macros=curses_defines,
+-                                   libraries = [panel_library] + curses_libs) )
+-        else:
+-            missing.append('_curses_panel')
++        missing.append('_curses')
++        missing.append('_curses_panel')
+ 
+         # Andrew Kuchling's zlib module.  Note that some versions of zlib
+         # 1.1.3 have security problems.  See CERT Advisory CA-2002-07:

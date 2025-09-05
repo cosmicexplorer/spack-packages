@@ -1,0 +1,46 @@
+diff --git a/Modules/mathmodule.c b/Modules/mathmodule.c
+index 9359eb2b3a0..85cb1abcd43 100644
+--- a/Modules/mathmodule.c
++++ b/Modules/mathmodule.c
+@@ -66,41 +66,6 @@ static const double pi = 3.141592653589793238462643383279502884197;
+ static const double sqrtpi = 1.772453850905516027298167483341145182798;
+ static const double logpi = 1.144729885849400174143427351353058711647;
+ 
+-static double
+-sinpi(double x)
+-{
+-    double y, r;
+-    int n;
+-    /* this function should only ever be called for finite arguments */
+-    assert(Py_IS_FINITE(x));
+-    y = fmod(fabs(x), 2.0);
+-    n = (int)round(2.0*y);
+-    assert(0 <= n && n <= 4);
+-    switch (n) {
+-    case 0:
+-        r = sin(pi*y);
+-        break;
+-    case 1:
+-        r = cos(pi*(y-0.5));
+-        break;
+-    case 2:
+-        /* N.B. -sin(pi*(y-1.0)) is *not* equivalent: it would give
+-           -0.0 instead of 0.0 when y == 1.0. */
+-        r = sin(pi*(1.0-y));
+-        break;
+-    case 3:
+-        r = -cos(pi*(y-1.5));
+-        break;
+-    case 4:
+-        r = sin(pi*(y-2.0));
+-        break;
+-    default:
+-        assert(0);  /* should never get here */
+-        r = -1.23e200; /* silence gcc warning */
+-    }
+-    return copysign(1.0, x)*r;
+-}
+-
+ /* Implementation of the real gamma function.  In extensive but non-exhaustive
+    random tests, this function proved accurate to within <= 10 ulps across the
+    entire float domain.  Note that accuracy may depend on the quality of the
