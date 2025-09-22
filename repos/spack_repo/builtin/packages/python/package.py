@@ -88,7 +88,7 @@ class Python(Package):
     extendable = True
 
     variant("free-threading", default=False, description="Experimental work to remove the GIL",
-            when="@3.15:")
+            when="@3.13:")
 
     # Variants to avoid cyclical dependencies for concretizer
     variant("libxml2", default=True, description="Use a gettext library build with libxml2")

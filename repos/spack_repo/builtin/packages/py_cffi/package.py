@@ -17,6 +17,7 @@ class PyCffi(PythonPackage):
 
     license("MIT")
 
+    version("2.0.0", sha256="44d1b5909021139fe36001ae048dbdde8214afa20200eda0f64c068cac5d5529")
     version("1.17.1", sha256="1c39c6016c32bc48dd54561950ebd6836e1670f2ae46128f67cf49e789c52824")
     version("1.16.0", sha256="bcb3ef43e58665bbda2fb198698fcae6776483e0c4a631aa5647806c25e02cc0")
     version("1.15.1", sha256="d400bfb9a37b1351253cb402671cea7e89bdecc294e8016a707f6d1d8ac934f9")
@@ -26,15 +27,19 @@ class PyCffi(PythonPackage):
 
     depends_on("c", type="build")
 
-    # Based on PyPI wheel availability
-    with default_args(type=("build", "link", "run")):
-        depends_on("python@3.8:", when="@1.16:")
+    # Inferred from PyPI wheel availability.
+    conflicts("python@:3.8")
+    conflicts("python@3.10:", when="@1.14")
+    conflicts("python@3.12:", when="@1.15")
+    conflicts("python@3.13:", when="@1.16")
+    conflicts("python@3.14:", when="@1.17")
 
-        depends_on("python@:3.13")
-        depends_on("python@:3.12", when="@:1.16")
-        depends_on("python@:3.11", when="@:1.15")
-        depends_on("python@:3.10", when="@:1.15.0")
-        depends_on("python@:3.9", when="@:1.14")
+    # NB: https://cffi.readthedocs.io/en/stable/whatsnew.html#v2-0-0
+    # > Note that the free-threaded build does not yet support building extensions with the
+    # limited API, so you must set py_limited_api=False when building extensions for the
+    # free-threaded build. CPython 3.13t is not currently supported due to differences in sync
+    # primitive behavior from 3.14t that result in segfaults.
+    conflicts("python@3.13+free-threading", when="@2")
 
     depends_on("pkgconfig", type="build")
     depends_on("py-setuptools", type="build")
