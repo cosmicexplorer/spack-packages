@@ -127,6 +127,12 @@ class Python(Package):
     variant("crypt", default=True, description="Build crypt module", when="@:3.12 platform=linux")
     variant("crypt", default=True, description="Build crypt module", when="@:3.12 platform=darwin")
 
+    variant("pystats", default=False, description="Enable internal statistics gathering.")
+    variant("profiling", default=False,
+            description="Enable low-level profiling of C code with gprof.")
+    variant("valgrind", default=False,
+            description="Enable valgrind support.")
+
     depends_on("c", type="build")
     depends_on("cxx", type="build")
 
@@ -534,19 +540,24 @@ class Python(Package):
             else:
                 config_args.append("--with-lto=full")
             config_args.append("--with-computed-gotos")
+            config_args.append('--with-strict-overflow')
+            config_args.append('--with-hash-algorithm=fnv')
 
         if '+free-threading' in spec:
             config_args.append('--disable-gil')
+        if '+pystats' in spec:
+            config_args.append('--enable-pystats')
+        if '+profiling' in spec:
+            config_args.append('--enable-profiling')
+        if '+valgrind' in spec:
+            config_args.append('--with-valgrind')
         config_args.extend([
-            # '--enable-pystats',
             '--disable-test-modules',
-            '--with-strict-overflow',
             '--with-c-locale-coercion',
             '--with-mimalloc',
             '--with-pymalloc',
-            '--with-hash-algorithm=fnv',
+            # TODO: this appears to crash with a stack overflow when building with PGO enabled.
             # '--with-tail-call-interp',
-            # '--enable-profiling',
             '--enable-safety',
             '--enable-ipv6',
         ])
