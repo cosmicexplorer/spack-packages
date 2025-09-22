@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
+import os
+
 from spack_repo.builtin.build_systems.autotools import AutotoolsPackage
 
 from spack.package import *
@@ -15,8 +17,13 @@ class Zsh(AutotoolsPackage):
 
     homepage = "https://www.zsh.org"
     url = "https://downloads.sourceforge.net/project/zsh/zsh/5.4.2/zsh-5.4.2.tar.xz"
+    git = "git://git.code.sf.net/p/zsh/code"
 
     license("custom")
+
+    version("master", branch="master")
+    version("arbitrary", commit="3cd363c8804a4569e601f4486a0001b1de14811f")
+    version('git.zsh-5.8.1=5.8.1', tag='zsh-5.8.1')
 
     version("5.9", sha256="9b8d1ecedd5b5e81fbf1918e876752a7dd948e05c1a0dba10ab863842d45acd5")
     version("5.8.1", sha256="b6973520bace600b4779200269b1e5d79e5f505ac4952058c11ad5bbf0dd9919")
@@ -30,7 +37,12 @@ class Zsh(AutotoolsPackage):
     # Testing for terminal related things causes failures in e.g. Jenkins.
     # See e.g. https://www.zsh.org/mla/users/2003/msg00845.html,
     # although the name of the option has evolved since then.
-    variant("skip-tcsetpgrp-test", default=True, description="Skip configure's tcsetpgrp test")
+    variant(
+        "skip-tcsetpgrp-test",
+        default=True,
+        description="Skip configure's tcsetpgrp test",
+        when="@:5.8.1",
+    )
     variant(
         "etcdir",
         default=False,
@@ -40,15 +52,50 @@ class Zsh(AutotoolsPackage):
 
     depends_on("c", type="build")  # generated
 
-    depends_on("pcre")
+    depends_on("pcre2")
     depends_on("ncurses")
+    depends_on("libcap")
+    depends_on("gdbm")
+    # depends_on("musl")
+    depends_on("perl", type="run")
+
+    with default_args(type="build"):
+        depends_on("autoconf")
+        depends_on("automake")
+        depends_on("libtool")
 
     conflicts("+lmod", when="~etcdir", msg="local etc required to setup env for lmod")
 
     patch("pointer-types.patch", when="@5.6.2:")
 
+    # TODO: is there a way to match specifically git versions?
+    @run_before("configure")
+    def pre_configure(self):
+        if not os.path.exists("configure"):
+            Executable("./Util/preconfig")()
+
     def configure_args(self):
         args = []
+
+        import pdb; pdb.set_trace()
+        if self.spec.satisfies("@snapshot"):
+            args.append('--enable-custom-patchlevel=spack-snapshot')
+
+        args.extend([
+            '--enable-pcre',
+            '--enable-cap',
+            '--enable-gdbm',
+            # '--enable-libc-musl',
+            '--with-term-lib=ncursesw tinfo termcap ncurses curses',
+        ])
+
+        args.extend([
+            '--enable-largefile',
+            '--enable-stack-allocation',
+            '--enable-multibyte',
+            '--enable-unicode9',
+            '--enable-year2038',
+        ])
 
         if "+skip-tcsetpgrp-test" in self.spec:
             # assert that we have a functional tcsetpgrp
