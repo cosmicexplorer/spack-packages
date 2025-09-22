@@ -19,7 +19,7 @@ class PyJcb(PythonPackage):
 
     license("GPL-3.0-only", checked_by="AlexanderRichert-NOAA")
 
-    version("develop", branch="develop", commit="16399323e36df6f17bfd4740a2330ca7fae31537")
+    version("develop", branch="develop")
 
     depends_on("python@3.6:", type=("build", "run"))
     depends_on("py-setuptools", type="build")

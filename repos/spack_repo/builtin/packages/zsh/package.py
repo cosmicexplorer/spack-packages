@@ -21,9 +21,9 @@ class Zsh(AutotoolsPackage):
 
     license("custom")
 
-    version("master", branch="master")
-    version("arbitrary", commit="3cd363c8804a4569e601f4486a0001b1de14811f")
-    version('git.zsh-5.8.1=5.8.1', tag='zsh-5.8.1')
+    version("master", branch="master", request_link=True)
+    # version("5.9-release", tag='zsh-5.9', request_link=True)
+    version('5.8.1-release', tag='zsh-5.8.1', links_to='5.8.1')
 
     version("5.9", sha256="9b8d1ecedd5b5e81fbf1918e876752a7dd948e05c1a0dba10ab863842d45acd5")
     version("5.8.1", sha256="b6973520bace600b4779200269b1e5d79e5f505ac4952058c11ad5bbf0dd9919")
@@ -66,19 +66,20 @@ class Zsh(AutotoolsPackage):
 
     conflicts("+lmod", when="~etcdir", msg="local etc required to setup env for lmod")
 
-    patch("pointer-types.patch", when="@5.6.2:")
+    patch("pointer-types.patch", when="@5.8:")
 
     # TODO: is there a way to match specifically git versions?
     @run_before("configure")
     def pre_configure(self):
-        if not os.path.exists("configure"):
-            Executable("./Util/preconfig")()
+        from spack.llnl.util.filesystem import safe_remove
+        with safe_remove('Doc/help.txt', 'Doc/help/[_a-zA-Z0-9]*'):
+            if not os.path.exists("configure"):
+                Executable("./Util/preconfig")()
 
     def configure_args(self):
         args = []
 
-        import pdb; pdb.set_trace()
-        if self.spec.satisfies("@snapshot"):
+        if self.spec.is_develop:
             args.append('--enable-custom-patchlevel=spack-snapshot')
 
         args.extend([
@@ -94,7 +95,6 @@ class Zsh(AutotoolsPackage):
             '--enable-stack-allocation',
             '--enable-multibyte',
             '--enable-unicode9',
-            '--enable-year2038',
         ])
 
         if "+skip-tcsetpgrp-test" in self.spec:
@@ -108,9 +108,10 @@ class Zsh(AutotoolsPackage):
 
         return args
 
+    @when("+lmod")
     @run_after("install")
     def setup_zshenv(self):
-        if "+lmod" in self.spec:
+        if '+lmod' in self.spec:
             zsh_setup = """
 if [ -d /etc/profile.d ]; then
   setopt no_nomatch

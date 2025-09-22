@@ -45,6 +45,7 @@ class Python(Package):
     list_url = "https://www.python.org/ftp/python/"
     list_depth = 1
     tags = ["windows", "build-tools"]
+    git = "https://github.com/python/cpython.git"
 
     maintainers("skosukhin", "scheibelp")
 
@@ -56,6 +57,9 @@ class Python(Package):
 
     license("0BSD")
 
+    version("main", branch='main', request_link=True)
+    version("3.14.0rc2", tag="v3.14.0rc2", request_link=True)
+    version("v3.13.0", tag="v3.13.0", links_to="3.13.0")
     version("3.13.5", sha256="e6190f52699b534ee203d9f417bdbca05a92f23e35c19c691a50ed2942835385")
     version("3.13.4", sha256="2666038f1521b7a8ec34bf2997b363778118d6f3979282c93723e872bcd464e0")
     version("3.13.3", sha256="988d735a6d33568cbaff1384a65cb22a1fb18a9ecb73d43ef868000193ce23ed")
@@ -82,6 +86,9 @@ class Python(Package):
         )
 
     extendable = True
+
+    variant("free-threading", default=False, description="Experimental work to remove the GIL",
+            when="@3.15:")
 
     # Variants to avoid cyclical dependencies for concretizer
     variant("libxml2", default=True, description="Use a gettext library build with libxml2")
@@ -525,8 +532,25 @@ class Python(Package):
             if "@3.11.0: %clang@3.9:" in spec or "@3.11.0: %apple-clang@8:" in spec:
                 config_args.append("--with-lto=thin")
             else:
-                config_args.append("--with-lto")
+                config_args.append("--with-lto=full")
             config_args.append("--with-computed-gotos")
+
+        if '+free-threading' in spec:
+            config_args.append('--disable-gil')
+        config_args.extend([
+            # '--enable-pystats',
+            '--disable-test-modules',
+            '--with-strict-overflow',
+            '--with-c-locale-coercion',
+            '--with-mimalloc',
+            '--with-pymalloc',
+            '--with-hash-algorithm=fnv',
+            # '--with-tail-call-interp',
+            # '--enable-profiling',
+            '--enable-safety',
+            '--enable-ipv6',
+        ])
+
 
         if spec.satisfies("@3.7 %intel"):
             config_args.append("--with-icc={0}".format(spack_cc))
