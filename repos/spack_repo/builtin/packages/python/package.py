@@ -804,15 +804,22 @@ class Python(Package):
         # * python
         #
         # in that order if using python@3.11.0, for example.
-        suffixes = [self.spec.version.up_to(2), self.spec.version.up_to(1), ""]
+        t_ext = "t" if '+free-threading' in self.spec else ""
+        suffixes = [
+            str(self.spec.version.up_to(2)) + t_ext,
+            str(self.spec.version.up_to(1)),
+            "",
+        ]
         ext = "" if sys.platform != "win32" else ".exe"
         filenames = [f"python{ver}{ext}" for ver in suffixes]
-        root = self.prefix.bin if sys.platform != "win32" else self.prefix
+
+        roots = (os.getcwd(), self.prefix.bin, self.prefix)
 
         for filename in filenames:
-            path = os.path.join(root, filename)
-            if is_exe(path):
-                return Executable(path)
+            for root in roots:
+                path = os.path.join(root, filename)
+                if is_exe(path):
+                    return Executable(path)
 
         # Give a last try at rhel8 platform python
         platform_python = os.path.join(self.prefix, "libexec", "platform-python")
@@ -858,9 +865,11 @@ print(json.dumps(config))
         lib_prefix = "lib" if sys.platform != "win32" else ""
         if dag_hash not in self._config_vars:
             # Default config vars
-            version = self.version.up_to(2)
+            version = str(self.version.up_to(2))
             if sys.platform == "win32":
-                version = str(version).split(".")[0]
+                version = version.split(".")[0]
+            if '+free-threading' in self.spec:
+                version += "t"
             config = {
                 # get_config_vars
                 "BINDIR": self.prefix.bin,
