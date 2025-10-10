@@ -10,6 +10,7 @@ from spack_repo.builtin.build_systems.autotools import AutotoolsPackage
 from spack_repo.builtin.build_systems.compiler import CompilerPackage
 from spack_repo.builtin.build_systems.gnu import GNUMirrorPackage
 
+from spack.compilers.adaptor import Languages
 from spack.package import *
 
 
@@ -28,10 +29,10 @@ class Gcc(AutotoolsPackage, GNUMirrorPackage, CompilerPackage):
 
     license("GPL-2.0-or-later AND LGPL-2.1-or-later")
 
-    provides("c", "cxx", when="languages=c,c++")
     provides("c", when="languages=c")
     provides("cxx", when="languages=c++")
     provides("fortran", when="languages=fortran")
+    provides("d", when="languages=d")
 
     version("master", branch="master")
 
@@ -322,6 +323,10 @@ class Gcc(AutotoolsPackage, GNUMirrorPackage, CompilerPackage):
         # Support for the D programming language has been added to GCC 9.
         # See https://gcc.gnu.org/gcc-9/changes.html#d
         conflicts("@:8", msg="support for D has been added in GCC 9.1")
+
+        # TODO: encode the d language deps into our provides() guarantees!
+        # TODO: ....as well as c and c++ standards??? (see line 670, _standard_flag())
+        # depends_on()
 
         # Versions of GDC prior to 12 can be built with an ISO C++11 compiler. Starting version 12,
         # the D frontend requires a working GDC. Moreover, it is strongly recommended to use an
@@ -634,12 +639,13 @@ class Gcc(AutotoolsPackage, GNUMirrorPackage, CompilerPackage):
         "c": os.path.join("gcc", "gcc"),
         "cxx": os.path.join("gcc", "g++"),
         "fortran": os.path.join("gcc", "gfortran"),
+        "d": os.path.join("gcc", "gdc"),
     }
 
     debug_flags = ["-g", "-gstabs+", "-gstabs", "-gxcoff+", "-gxcoff", "-gvms"]
     opt_flags = ["-O", "-O0", "-O1", "-O2", "-O3", "-Os", "-Ofast", "-Og"]
 
-    implicit_rpath_libs = ["libgcc", "libgfortran"]
+    implicit_rpath_libs = ["libgcc", "libgfortran", "libgdruntime", "libgphobos"]
     stdcxx_libs = ("-lstdc++",)
 
     def _standard_flag(self, *, language, standard):
@@ -727,6 +733,11 @@ class Gcc(AutotoolsPackage, GNUMirrorPackage, CompilerPackage):
     def _fortran_path(self):
         if self.spec.satisfies("languages=fortran"):
             return str(self.spec.prefix.bin.gfortran)
+        return None
+
+    def _d_path(self):
+        if self.spec.satisfies("languages=d"):
+            return str(self.spec.prefix.bin.gdc)
         return None
 
     def url_for_version(self, version):
@@ -1123,6 +1134,9 @@ class Gcc(AutotoolsPackage, GNUMirrorPackage, CompilerPackage):
             env.set("FC", self.fortran)
             env.set("F77", self.fortran)
 
+        if self.d and self.spec.satisfies("languages=d"):
+            env.set("DC", self.d)
+
     def detect_gdc(self):
         """Detect and return the path to GDC that belongs to the same instance of GCC that is used
         by self.compiler.
@@ -1142,17 +1156,19 @@ class Gcc(AutotoolsPackage, GNUMirrorPackage, CompilerPackage):
         )
 
         # We consider only packages that satisfy the following constraint:
-        required_spec = Spec("languages=c,c++,d")
+        required_spec = Spec("languages=d")
         candidate_specs = [
-            p.spec
-            for p in filter(
-                lambda p: p.spec.satisfies(required_spec), detected_packages.get(self.name, ())
-            )
+            p for p in detected_packages.get(self.name, ())
+            if p.satisfies(required_spec)
         ]
 
         if candidate_specs:
             # We now need to filter specs that match the compiler version:
-            compiler_spec = Spec(repr(self.compiler.spec))
+            print(
+                self.compiler.compilers,
+                file=sys.stderr
+            )
+            compiler_spec = self.compiler.compilers[Languages.D]
 
             # First, try to filter specs that satisfy the compiler spec:
             new_candidate_specs = list(
@@ -1178,7 +1194,7 @@ class Gcc(AutotoolsPackage, GNUMirrorPackage, CompilerPackage):
                 long_msg="Starting version 12, the D frontend requires a working GDC."
                 "{0}You can install it with Spack by running:"
                 "{0}{0}spack install gcc@9:11 languages=c,c++,d"
-                "{0}{0}Once that has finished, you will need to add it to your compilers.yaml file"
+                "{0}{0}Once that has finished, you will need to add it to your packages.yaml file"
                 "{0}and use it to install this spec (i.e. {1} ...).".format(
                     error_nl, self.spec.format("{name}{@version} {variants.languages}")
                 ),
@@ -1223,7 +1239,7 @@ class Gcc(AutotoolsPackage, GNUMirrorPackage, CompilerPackage):
             spec: spec that will inject runtime dependencies
             pkg: object used to forward information to the solver
         """
-        for language in ("c", "cxx", "fortran"):
+        for language in ("c", "cxx", "fortran", "d"):
             pkg("*").depends_on(
                 f"gcc-runtime@{spec.version}:",
                 when=f"%[deptypes=build virtuals={language}] {spec.name}@{spec.versions}",

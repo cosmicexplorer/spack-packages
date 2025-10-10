@@ -30,6 +30,8 @@ class GccRuntime(Package):
         "asan",
         "atomic",
         "gcc_s",
+        "gdruntime",
+        "gphobos",
         "gfortran",
         "gomp",
         "hwasan",
@@ -117,7 +119,7 @@ class GccRuntime(Package):
     def _get_compiler(self):
         gcc_pkg = self["gcc"]
         exe_path = None
-        for attr_name in ("cc", "cxx", "fortran"):
+        for attr_name in ("cc", "cxx", "fortran", "d"):
             try:
                 exe_path = getattr(gcc_pkg, attr_name)
             except AttributeError:

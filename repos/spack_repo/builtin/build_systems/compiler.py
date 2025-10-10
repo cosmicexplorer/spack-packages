@@ -199,6 +199,16 @@ class CompilerPackage(PackageBase):
         """Returns the path to the C compiler, if the package was installed by Spack"""
         return None
 
+    def d(self) -> Optional[str]:
+        assert self.spec.concrete, "cannot retrieve D compiler, spec is not concrete"
+        if self.spec.external:
+            return self.spec.extra_attributes.get("compilers", {}).get("d", None)
+        return self._d_path()
+
+    def _d_path(self) -> Optional[str]:
+        """Returns the path to the D compiler, if the package was installed by Spack"""
+        return None
+
     @property
     def cxx(self) -> Optional[str]:
         assert self.spec.concrete, "cannot retrieve C++ compiler, spec is not concrete"
