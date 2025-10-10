@@ -25,7 +25,7 @@ class GreenSeet(CMakePackage):
     license("MIT")
 
     # Versions and checksums
-    version("seet-dev", branch="SEET", commit="7b076bf07930157d9583f9e942867bc08605a4dd")
+    version("seet-dev", commit="7b076bf07930157d9583f9e942867bc08605a4dd")
 
     # Build system dependency
     depends_on("cmake@3.27:", type="build")

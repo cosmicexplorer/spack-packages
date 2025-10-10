@@ -38,7 +38,7 @@ class Ginkgo(CMakePackage, CudaPackage, ROCmPackage):
     version("1.5.0", commit="234594c92b58e2384dfb43c2d08e7f43e2b58e7a")  # v1.5.0
     version(
         "1.5.0.glu_experimental",
-        branch="glu_experimental",
+        # branch="glu_experimental",
         commit="e234eab1bd7afe85dd594638e291a2caf464bfb1",
     )
     version("1.4.0", commit="f811917c1def4d0fcd8db3fe5c948ce13409e28e")  # v1.4.0
