@@ -9,6 +9,10 @@ from spack_repo.builtin.build_systems.cmake import CMakePackage, generator
 from spack_repo.builtin.build_systems.compiler import CompilerPackage
 from spack_repo.builtin.build_systems.cuda import CudaPackage
 
+# FIXME: if we do a dev-build and (?) it takes too long, these fail the install with a NameError!
+#        For some reason explicitly importing works. Occurs on 3.15.0a0, free-threading build with
+#        optimizations enabled.
+from spack.llnl.util.filesystem import can_access_dir, can_write_to_dir
 from spack.package import *
 
 
@@ -53,6 +57,12 @@ class Llvm(CMakePackage, CudaPackage, LlvmDetection, CompilerPackage):
 
     version("main", branch="main")
 
+    version("21.1.0", tag="llvmorg-21.1.0")
+
+    version("21.1-rust",
+            tag="rustc/21.1-2025-08-01",
+            git="https://github.com/rust-lang/llvm-project")
+
     # Latest stable
     version("20.1.8", sha256="a6cbad9b2243b17e87795817cfff2107d113543a12486586f8a055a2bb044963")
     version("20.1.7", sha256="91865189d0ca30ca81b7f7af637aca745b6eeeba97c5dfb0ab7d79a1d9659289")
@@ -92,6 +102,12 @@ class Llvm(CMakePackage, CudaPackage, LlvmDetection, CompilerPackage):
 
     variant(
         "clang", default=True, description="Build the LLVM C/C++/Objective-C compiler frontend"
+    )
+    variant(
+        "clang-tools-extra",
+        when="+clang",
+        default=True,
+        description="Build additional tools like clangd and clang-tidy which increase build time."
     )
 
     variant("flang", default=False, description="Build the LLVM Fortran compiler frontend ")
@@ -164,6 +180,14 @@ class Llvm(CMakePackage, CudaPackage, LlvmDetection, CompilerPackage):
         "or as a project (with the compiler in use)",
     )
     variant(
+        "remove-rt-prefix",
+        when="compiler-rt=runtime",
+        default=False,
+        description="Remove the lib/clang/<version> prefix from compiler-runtime "
+        "artifacts in the install directory. "
+        "This is unfortunately necessary for bootstrapping Rust."
+    )
+    variant(
         "gold",
         default=(sys.platform != "darwin"),
         description="Add support for LTO with the gold linker plugin",
@@ -221,10 +245,10 @@ class Llvm(CMakePackage, CudaPackage, LlvmDetection, CompilerPackage):
     )
     variant(
         "openmp",
-        values=("project", conditional("runtime", when="+clang @12:")),
+        values=("none", "project", conditional("runtime", when="+clang @12:")),
         default="runtime",
-        description="Build OpenMP either as a runtime (with just-build Clang) "
-        "or as a project (with the compiler in use)",
+        description="Build OpenMP either as a runtime (with just-build Clang), "
+        "as a project (with the compiler in use), or not at all.",
     )
     variant(
         "code_signing",
@@ -978,8 +1002,11 @@ class Llvm(CMakePackage, CudaPackage, LlvmDetection, CompilerPackage):
 
         if spec.satisfies("+clang"):
             projects.append("clang")
-            projects.append("clang-tools-extra")
-            if spec.satisfies("openmp=runtime"):
+            if spec.satisfies("+clang-tools-extra"):
+                projects.append("clang-tools-extra")
+            if spec.satisfies("openmp=none"):
+                pass
+            elif spec.satisfies("openmp=runtime"):
                 runtimes.append("openmp")
             elif spec.satisfies("openmp=project"):
                 projects.append("openmp")
@@ -1169,7 +1196,7 @@ class Llvm(CMakePackage, CudaPackage, LlvmDetection, CompilerPackage):
                 install_tree("clang/bindings/python", python_platlib)
 
         with working_dir(self.build_directory):
-            install_tree("bin", join_path(self.prefix, "libexec", "llvm"))
+            install_tree("bin", self.prefix.libexec.llvm)
 
         cfg_files = []
         if spec.satisfies("+clang"):
@@ -1183,6 +1210,23 @@ class Llvm(CMakePackage, CudaPackage, LlvmDetection, CompilerPackage):
             for cfg in cfg_files:
                 with open(os.path.join(self.prefix.bin, cfg), "w") as f:
                     print(gcc_install_dir_flag, file=f)
+
+        # Remove the lib/clang/<major version> prefix--dump it all in the top level.
+        if spec.satisfies("+remove-rt-prefix"):
+            major_version = self.spec.version.up_to_1
+            tty.debug(f"major version of current spec {self.spec} is {major_version}")
+            base_rt_src_dir = join_path("lib", "clang", self.spec.version.up_to_1)
+            assert can_access_dir(join_path(self.prefix, base_rt_src_dir)), (self.prefix, base_rt_src_dir)
+            tty.debug(f"copying subdirs of version-specific compiler-rt dir {base_rt_src_dir}")
+
+            for subdir in ("bin", "include", "lib", "share"):
+                out_dir = join_path(self.prefix, subdir)
+                if not os.path.exists(out_dir):
+                    mkdirp(out_dir, default_perms="parents")
+                assert can_write_to_dir(out_dir), out_dir
+                in_dir = join_path(self.prefix, base_rt_src_dir, subdir)
+                assert can_access_dir(in_dir), in_dir
+                copy_tree(in_dir, out_dir, symlinks=True)
 
     def llvm_config(self, *args, result=None, **kwargs):
         lc = Executable(self.prefix.bin.join("llvm-config"))
