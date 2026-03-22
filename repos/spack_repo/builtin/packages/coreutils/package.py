@@ -22,7 +22,7 @@ class Coreutils(AutotoolsPackage, GNUMirrorPackage):
 
     tags = ["core-packages"]
 
-    executables = [r"^md5sum$"]
+    executables = [r"^(?:ck|md5|b2|sha256|sha384|sha512)sum$"]
 
     license("GPL-3.0-or-later")
 
