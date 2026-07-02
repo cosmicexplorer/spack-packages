@@ -45,6 +45,7 @@ class Python(Package):
     list_url = "https://www.python.org/ftp/python/"
     list_depth = 1
     tags = ["windows", "build-tools"]
+    git = "https://github.com/python/cpython.git"
 
     maintainers("adamjstewart", "scheibelp")
 
@@ -56,11 +57,13 @@ class Python(Package):
 
     license("0BSD")
 
+    version("develop", branch="main")
     version("3.14.5", sha256="9c22bfe9939a6c5418fc74b289a5f1cc41859ae82ac6b163016b5844bd0a86bc")
     version("3.13.13", sha256="f9cde7b0e2ec8165d7326e2a0f59ea2686ce9d0c617dbbb3d66a7e54d31b74b9")
     version("3.12.13", sha256="0816c4761c97ecdb3f50a3924de0a93fd78cb63ee8e6c04201ddfaedca500b0b")
     version("3.11.15", sha256="f4de1b10bd6c70cbb9fa1cd71fc5038b832747a74ee59d599c69ce4846defb50")
     version("3.10.20", sha256="4ff5fd4c5bab803b935019f3e31d7219cebd6f870d00389cea53b88bbe935d1a")
+    version("3.9.24", sha256="9a32cfc683aecaadbd9ed891ac2af9451ff37f48a00a2d8e1f4ecd9c2a1ffdcb")
 
     # Deprecated because newer bug fix patch releases exist
     with default_args(deprecated=True):
@@ -164,6 +167,13 @@ class Python(Package):
             "3.6.15", sha256="54570b7e339e2cfd72b29c7e2fdb47c0b7b18b7412e61de5b463fc087c13b043"
         )
 
+        version("3.5.0",
+                commit="2e789a1f1d84b343a996e8654590703b5fbdd441",
+                tag="v3.5.0")
+        version("2.7.18",
+                commit="8d21aa21f2cbc6d50aab3f420bb23be1d081dac4",
+                tag="v2.7.18")
+
     extendable = True
 
     # Variants to avoid cyclical dependencies for concretizer
@@ -208,9 +218,18 @@ class Python(Package):
     variant(
         "freethreading",
         default=False,
-        description="Removes the Global Interpreter Lock",
+        description="Enable support for running without the GIL",
         when="@3.13:",
     )
+
+    variant("mimalloc", default=True, description="With the mimalloc allocator",
+            when="@3.13:")
+    variant("tail-call", default=False,
+            description="Enable tail-calling interpreter",
+            when="@3.14:")
+    variant("computed-gotos", default=False,
+            description="Enable computed gotos (enabled by default on supported compilers)",
+            when="@3.7:")
 
     depends_on("c", type="build")
     depends_on("cxx", type="build")
@@ -250,6 +269,8 @@ class Python(Package):
         depends_on("tix", when="+tix")
         depends_on("libxcrypt", when="+crypt")
 
+        depends_on("mimalloc", when="+mimalloc")
+
     patch(
         "https://bugs.python.org/file44413/alignment.patch",
         when="@3.6",
@@ -277,11 +298,22 @@ class Python(Package):
     patch("tkinter-3.11.patch", when="@3.11.0:3.11 ~tkinter")
 
     # Ensure that distutils chooses correct compiler option for RPATH:
-    patch("rpath-non-gcc.patch", when="@:3.11")
+    patch("rpath-non-gcc.patch", when="@3:3.11")
 
     # Ensure that distutils chooses correct compiler option for RPATH on fj:
-    patch("fj-rpath-3.1.patch", when="@:3.9.7,3.10.0 %fj")
+    patch("fj-rpath-3.1.patch", when="@3:3.9.7,3.10.0 %fj")
     patch("fj-rpath-3.9.patch", when="@3.9.8:3.9,3.10.1:3.11 %fj")
+
+    # This module does not build and is not useful for bootstrapping.
+    patch("linuxaudiodev.patch", when="@2.7")
+    # sinpi is defined by libc apparently?
+    patch("sinpi.patch", when="@3:3.6")
+
+    with when("@3:3.5"):
+        # These don't build and it's not clear why.
+        patch("disable-curses-nis.patch")
+        conflicts('+ssl',
+                  msg="ssl searching is broken for 3.5 for some reason")
 
     # CPython tries to build an Objective-C file with GCC's C frontend
     # https://github.com/spack/spack/pull/16222
@@ -294,7 +326,7 @@ class Python(Package):
     conflicts("%nvhpc")
 
     # https://bugs.python.org/issue45405
-    conflicts("@:3.7.12,3.8.0:3.8.12,3.9.0:3.9.7,3.10.0", when="%apple-clang@13:")
+    conflicts("@3:3.7.12,3.8.0:3.8.12,3.9.0:3.9.7,3.10.0", when="%apple-clang@13:")
 
     # See https://github.com/python/cpython/issues/106424
     # datetime.now(timezone.utc) segfaults
@@ -413,7 +445,7 @@ class Python(Package):
 
         # limit the number of processes to use for compileall in older Python versions
         # https://github.com/python/cpython/commit/9a7e9f9921804f3f90151ca42703e612697dd430
-        if self.spec.satisfies("@:3.11"):
+        if self.spec.satisfies("@3:3.11"):
             ff.filter("-j0 ", f"-j{make_jobs} ")
 
         # disable building the nis module (there is no flag to disable it).
@@ -464,7 +496,7 @@ class Python(Package):
                 env.unset("LC_ALL")
 
         # https://github.com/python/cpython/issues/87275
-        if spec.satisfies("@:3.9.5 +optimizations %apple-clang"):
+        if spec.satisfies("@3:3.9.5 +optimizations %apple-clang"):
             xcrun = Executable("/usr/bin/xcrun")
             env.set("LLVM_AR", xcrun("-find", "ar", output=str).strip())
 
@@ -480,6 +512,10 @@ class Python(Package):
         if self.spec.satisfies("%aocc@3.2.0"):
             if name == "cflags":
                 flags.extend(["-mllvm", "-disable-indvar-simplify=true"])
+
+        if self.version <= Version('3.6'):
+            if name == 'cflags':
+                flags.append('-std=c99')
 
         # allow flags to be passed through compiler wrapper
         return (flags, None, None)
@@ -698,12 +734,22 @@ class Python(Package):
                 ]
             )
 
-        if "+freethreading" in spec:
-            config_args.append("--disable-gil")
-
         # Disable tkinter module in the configure script for Python 3.12 onwards if ~tkinter
         if spec.satisfies("@3.12:") and spec.satisfies("~tkinter"):
             config_args.append("py_cv_module__tkinter=n/a")
+        if '+mimalloc' in spec:
+            config_args.append('--with-mimalloc')
+        if '+freethreading' in spec:
+            config_args.append('--disable-gil')
+        if '+tail-call' in spec:
+            config_args.append('--with-tail-call-interp')
+        if '+readline' in spec:
+            if self.version >= Version('3.12'):
+                config_args.append('--with-readline=readline')
+            elif self.version >= Version('3.10'):
+                config_args.append('--with-readline')
+        if '+computed-gotos' in spec:
+            config_args.append('--with-computed-gotos')
 
         # Disable the nis module in the configure script for Python 3.11 and 3.12. It is deleted
         # in Python 3.13. See ``def patch`` for disabling the nis module in Python 3.10 and older.
@@ -775,7 +821,7 @@ class Python(Package):
                 # See https://github.com/python/cpython/issues/102007
                 make(*self.install_targets, f"COMPILEALL_OPTS=-j{make_jobs}", parallel=False)
 
-    @run_after("install")
+    @run_after("install", when="@3.6:")
     def filter_compilers(self):
         """Run after install to tell the configuration files and Makefiles
         to use the compilers that Spack built the package with.
@@ -801,11 +847,18 @@ class Python(Package):
         prefix = self.prefix
 
         if spec.satisfies("+pythoncmd"):
-            symlink(os.path.join(prefix.bin, "python3"), os.path.join(prefix.bin, "python"))
-            symlink(
-                os.path.join(prefix.bin, "python3-config"),
-                os.path.join(prefix.bin, "python-config"),
-            )
+            pycmd_base = 'python2' if self.version < Version('3') else 'python3'
+            try:
+                symlink(os.path.join(prefix.bin, pycmd_base), os.path.join(prefix.bin, "python"))
+            except FileExistsError:
+                pass
+            try:
+                symlink(
+                    os.path.join(prefix.bin, f"{pycmd_base}-config"),
+                    os.path.join(prefix.bin, "python-config"),
+                )
+            except FileExistsError:
+                pass
 
     @run_after("install")
     def install_python_gdb(self):
