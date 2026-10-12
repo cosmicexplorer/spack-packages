@@ -15,10 +15,11 @@ class Gettext(AutotoolsPackage, GNUMirrorPackage):
 
     homepage = "https://www.gnu.org/software/gettext/"
     gnu_mirror_path = "gettext/gettext-0.20.1.tar.xz"
+    git = "https://https.git.savannah.gnu.org/git/gettext.git"
 
     maintainers("michaelkuhn")
 
-    executables = [r"^gettext$"]
+    executables = [r"^gettext(?:ize)?$", r"^autopoint$"]
     tags = ["build-tools"]
 
     license("GPL-3.0-or-later AND LGPL-2.1-or-later AND MIT")
@@ -178,9 +179,32 @@ class Gettext(AutotoolsPackage, GNUMirrorPackage):
         )
         return libs
 
+    @property
+    def _pfx(self):
+        import spack.config
+        return Prefix(spack.config.substitute_path_variables(self.spec.prefix.bin))
+
+    @property
+    def _pfx_bin(self):
+        return self._pfx.bin
+
+    def _setup_dependent_env(self, env: EnvironmentModifications) -> None:
+        env.set("AUTOPOINT", self._pfx_bin.autopoint)
+        env.set("GETTEXT", self._pfx_bin.gettext)
+        env.set("GETTEXTIZE", self._pfx_bin.gettextize)
+
+    def setup_run_environment(self, env: EnvironmentModifications) -> None:
+        self._setup_dependent_env(env)
+
     def setup_dependent_build_environment(
         self, env: EnvironmentModifications, dependent_spec: Spec
     ) -> None:
         # In addition to prefix/share/aclocal, newer versions of gettext also
         # install m4 files into prefix/share/gettext/m4.
-        env.append_path("ACLOCAL_PATH", self.prefix.share.gettext.m4)
+        env.append_path("ACLOCAL_PATH", self._pfx.share.gettext.m4)
+        self._setup_dependent_env(env)
+
+    def setup_dependent_run_environment(
+        self, env: EnvironmentModifications, dependent_spec: Spec,
+    ) -> None:
+        self._setup_dependent_env(env)

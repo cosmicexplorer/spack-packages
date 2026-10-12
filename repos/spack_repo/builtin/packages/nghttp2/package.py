@@ -13,6 +13,8 @@ class Nghttp2(AutotoolsPackage):
 
     homepage = "https://nghttp2.org/"
     url = "https://github.com/nghttp2/nghttp2/releases/download/v1.26.0/nghttp2-1.26.0.tar.gz"
+    git = "https://github.com/nghttp2/nghttp2.git"
+    submodules = True
 
     license("MIT")
 
@@ -35,27 +37,12 @@ class Nghttp2(AutotoolsPackage):
     version("1.44.0", sha256="3e4824d02ae27eca931e0bb9788df00a26e5fd8eb672cf52cbb89c1463ba16e9")
     version("1.26.0", sha256="daf7c0ca363efa25b2cbb1e4bd925ac4287b664c3d1465f6a390359daa3f0cf1")
 
-    depends_on("c", type="build")  # generated
-    depends_on("cxx", type="build")  # generated
+    depends_on("c", type="build")
 
-    depends_on("pkgconfig", type="build")
-    depends_on("diffutils", type="build")
+    depends_on("pkgconfig@0.20:", type="build")
 
     def configure_args(self):
         return [
             "--enable-lib-only",
-            "--with-libxml2=no",
-            "--with-jansson=no",
-            "--with-zlib=no",
-            "--with-libevent-openssl=no",
-            "--with-libcares=no",
-            "--with-openssl=no",
-            "--with-libev=no",
-            "--with-cunit=no",
-            "--with-jemalloc=no",
-            "--with-systemd=no",
-            "--with-mruby=no",
-            "--with-neverbleed=no",
-            "--with-boost=no",
-            "--with-wolfssl=no",
+            '--enable-year2038',
         ]

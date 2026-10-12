@@ -118,6 +118,16 @@ class Autoconf(AutotoolsPackage, GNUMirrorPackage):
     def installcheck(self):
         pass
 
+    @property
+    def _self_pfx(self):
+        import spack.config
+        return Prefix(spack.config.substitute_path_variables(self.prefix))
+
+    @property
+    def _pfx(self):
+        import spack.config
+        return Prefix(spack.config.substitute_path_variables(self.spec.prefix))
+
     @run_after("install")
     def filter_sbang(self):
         # We have to do this after install because otherwise the install
@@ -133,12 +143,12 @@ class Autoconf(AutotoolsPackage, GNUMirrorPackage):
         filter_file(
             "^#! /usr/bin/env perl",
             shebang_string.format(self.spec["perl"].command.path),
-            self.prefix.bin.autom4te,
+            self._self_pfx.bin.autom4te,
             backup=False,
         )
 
     def _make_executable(self, name):
-        return Executable(join_path(self.prefix.bin, name))
+        return Executable(join_path(self._self_pfx.bin, name))
 
     def setup_dependent_package(self, module, dependent_spec):
         # Autoconf is very likely to be a build dependency,
@@ -156,9 +166,9 @@ class Autoconf(AutotoolsPackage, GNUMirrorPackage):
             setattr(module, name, self._make_executable(name))
 
     def _setup_dependent_env(self, env: EnvironmentModifications) -> None:
-        env.set("AUTOCONF", self.spec.prefix.bin.autoconf)
-        env.set("AUTOHEADER", self.spec.prefix.bin.autoheader)
-        env.set("AUTOM4TE", self.spec.prefix.bin.autom4te)
+        env.set("AUTOCONF", self._pfx.bin.autoconf)
+        env.set("AUTOHEADER", self._pfx.bin.autoheader)
+        env.set("AUTOM4TE", self._pfx.bin.autom4te)
 
     def setup_run_environment(self, env: EnvironmentModifications) -> None:
         self._setup_dependent_env(env)

@@ -2,7 +2,9 @@
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
-from spack_repo.builtin.build_systems.cmake import CMakePackage
+import re
+
+from spack_repo.builtin.build_systems.cmake import CMakePackage, generator
 
 from spack.package import *
 
@@ -15,20 +17,47 @@ class Brotli(CMakePackage):
 
     license("MIT")
 
+    executables = [r'^brotli$']
+
     version("1.2.0", sha256="816c96e8e8f193b40151dad7e8ff37b1221d019dbcb9c35cd3fadbfe6477dfec")
 
-    with default_args(deprecated=True):
-        version("1.1.0", sha256="e720a6ca29428b803f4ad165371771f5398faba397edf6778837a18599ea13ff")
-        version("1.0.9", sha256="f9e8d81d0405ba66d181529af42a3354f838c939095ff99930da6aa9cdf6fe46")
-        version("1.0.7", sha256="4c61bfb0faca87219ea587326c467b95acb25555b53d1a421ffa3c8a9296ee2c")
+    variant("tools", default=True,
+        description="Build the `brotli` executable.")
+
+    variant(
+        "libs",
+        default="shared",
+        values=("shared", "static"),
+        description="Build shared libs or static libs (brotli only allows one or the other)",
+    )
 
     depends_on("c", type="build")
 
-    depends_on("cmake@3.15:", type="build", when="@1.1.0:")
-    depends_on("cmake@2.8.6:", type="build", when="@1.0.7:")
+    depends_on("cmake@3.15:", type="build")
+    generator("make")
+    depends_on("gmake", type="build")
 
-    @run_after("install", when="@:1.0")
-    def darwin_fix(self):
-        # cmake_minimum_required(VERSION 2.8.6) issue related to install name. Fixed in v1.1+
-        if self.spec.satisfies("platform=darwin"):
-            fix_darwin_install_name(self.prefix.lib)
+    def cmake_args(self) -> list[str]:
+        args = [
+            self.define("BROTLI_BUILD_FOR_PACKAGE", False),
+        ]
+
+        args.append(self.define_from_variant("BROTLI_BUILD_TOOLS", "tools"))
+
+        libs = self.spec.variants['libs'].value
+        if libs == 'shared':
+            args.append(self.define("BUILD_SHARED_LIBS", True))
+        else:
+            assert libs == 'static', libs
+            args.append(self.define("BUILD_SHARED_LIBS", False))
+
+        return args
+
+    _version_at_eol = re.compile(r'\s+([0-9]+\.[0-9]+(?:\.[0-9]+)?\S*)$')
+    @classmethod
+    def determine_version(cls, exe):
+        exe = Executable(exe)
+        m = cls._version_at_eol.search(exe("--version").splitlines()[0])
+        if m:
+            return m.group(1)
+        return None

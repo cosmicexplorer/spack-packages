@@ -176,7 +176,7 @@ class Perl(Package):  # Perl doesn't use Autotools, it should subclass Package
             args.append("CCTYPE=%s" % self["msvc"].short_msvc_version)
         else:
             raise RuntimeError("Perl unsupported for non MSVC compilers on Windows")
-        args.append("INST_TOP=%s" % windows_sfn(self.prefix.replace("/", "\\")))
+        args.append("INST_TOP=%s" % windows_sfn(self._self_pfx.replace("/", "\\")))
         args.append("INST_ARCH=\\$(ARCHNAME)")
         if self.spec.satisfies("~shared"):
             args.append("ALL_STATIC=%s" % "define")
@@ -189,9 +189,19 @@ class Perl(Package):  # Perl doesn't use Autotools, it should subclass Package
     def is_64bit(self):
         return "64" in str(self.spec.target.family)
 
+    @property
+    def _self_pfx(self):
+        import spack.config
+        return Prefix(spack.config.substitute_path_variables(self.prefix))
+
+    @property
+    def _pfx(self):
+        import spack.config
+        return Prefix(spack.config.substitute_path_variables(self.spec.prefix))
+
     def configure_args(self):
         spec = self.spec
-        prefix = self.prefix
+        prefix = self._self_pfx
 
         config_args = [
             "-des",
@@ -214,7 +224,7 @@ class Perl(Package):  # Perl doesn't use Autotools, it should subclass Package
         # [1] https://metacpan.org/pod/ExtUtils::MakeMaker#INSTALL_BASE
         # [2] via the activate method in the PackageBase class
         # [3] https://metacpan.org/pod/distribution/perl/INSTALL#APPLLIB_EXP
-        config_args.append('-Accflags=-DAPPLLIB_EXP=\\"' + self.prefix.lib.perl5 + '\\"')
+        config_args.append('-Accflags=-DAPPLLIB_EXP=\\"' + self._self_pfx.lib.perl5 + '\\"')
 
         # Discussion of -fPIC for Intel at:
         # https://github.com/spack/spack/pull/3081 and
@@ -276,7 +286,7 @@ class Perl(Package):  # Perl doesn't use Autotools, it should subclass Package
     def symlink_windows(self):
         if sys.platform != "win32":
             return
-        win_install_path = os.path.join(self.prefix.bin, "MSWin32")
+        win_install_path = os.path.join(self._self_pfx.bin, "MSWin32")
         if self.is_64bit():
             win_install_path += "-x64"
         else:
@@ -286,8 +296,8 @@ class Perl(Package):  # Perl doesn't use Autotools, it should subclass Package
         else:
             win_install_path += "-perlio"
 
-        for f in os.listdir(os.path.join(self.prefix.bin, win_install_path)):
-            lnk_path = os.path.join(self.prefix.bin, f)
+        for f in os.listdir(os.path.join(self._self_pfx.bin, win_install_path)):
+            lnk_path = os.path.join(self._self_pfx.bin, f)
             src_path = os.path.join(win_install_path, f)
             if not os.path.exists(lnk_path):
                 symlink(src_path, lnk_path)
@@ -317,13 +327,13 @@ class Perl(Package):  # Perl doesn't use Autotools, it should subclass Package
             perl_lib_path = ":".join(perl_lib_dirs)
             env.prepend_path("PERL5LIB", perl_lib_path)
         if sys.platform == "win32":
-            env.append_path("PATH", self.prefix.bin)
+            env.append_path("PATH", self._self_prefix.bin)
         # Set $PERL
-        env.set("PERL", self.spec.prefix.bin.perl)
+        env.set("PERL", self._pfx.bin.perl)
 
     def setup_run_environment(self, env: EnvironmentModifications) -> None:
         # Set $PERL
-        env.set("PERL", self.spec.prefix.bin.perl)
+        env.set("PERL", self._pfx.bin.perl)
 
     def setup_dependent_build_environment(
         self, env: EnvironmentModifications, dependent_spec: Spec
@@ -353,7 +363,7 @@ class Perl(Package):  # Perl doesn't use Autotools, it should subclass Package
 
     def setup_build_environment(self, env: EnvironmentModifications) -> None:
         if sys.platform == "win32":
-            env.append_path("PATH", self.prefix.bin)
+            env.append_path("PATH", self._self_pfx.bin)
             return
 
         spec = self.spec
@@ -432,7 +442,7 @@ class Perl(Package):  # Perl doesn't use Autotools, it should subclass Package
             ext = ""
             if sys.platform == "win32":
                 ext = ".exe"
-            path = os.path.join(self.prefix.bin, f"{self.spec.name}{ver}{ext}")
+            path = os.path.join(self._self_pfx.bin, f"{self.spec.name}{ver}{ext}")
             if os.path.exists(path):
                 return Executable(path)
         else:

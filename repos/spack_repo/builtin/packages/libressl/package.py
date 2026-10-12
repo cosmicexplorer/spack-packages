@@ -15,6 +15,8 @@ class Libressl(AutotoolsPackage):
     homepage = "https://www.libressl.org"
     url = "https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.6.1.tar.gz"
 
+    provides("tls")
+
     maintainers("eschnett")
 
     license("custom")

@@ -4,6 +4,7 @@
 import os
 import pathlib
 import re
+import stat
 
 from spack_repo.builtin.build_systems import autotools
 from spack_repo.builtin.build_systems.autotools import AutotoolsPackage
@@ -35,7 +36,8 @@ class Binutils(AutotoolsPackage, GNUMirrorPackage):
     version("2.46-branch", branch="binutils-2_46-branch")
     version("develop", branch="master")
 
-    version("2.46.1", sha256="324ed40ada2633a28eaa5d104ca5db165fd3cc3162cc1d48a7b7fa9c932da439")
+    version("2.46.1", sha256="324ed40ada2633a28eaa5d104ca5db165fd3cc3162cc1d48a7b7fa9c932da439",
+            preferred=True)
     version("2.46.0", sha256="0f3152632a2a9ce066f20963e9bb40af7cf85b9b6c409ed892fd0676e84ecd12")
     version("2.45.1", sha256="860daddec9085cb4011279136fc8ad29eb533e9446d7524af7f517dd18f00224")
     version("2.45", sha256="1393f90db70c2ebd785fb434d6127f8888c559d5eeb9c006c354b203bab3473e")
@@ -58,11 +60,12 @@ class Binutils(AutotoolsPackage, GNUMirrorPackage):
     version("2.31.1", sha256="ffcc382695bf947da6135e7436b8ed52d991cf270db897190f19d6f9838564d0")
     version("2.30", sha256="efeade848067e9a03f1918b1da0d37aaffa0b0127a06b5e9236229851d9d0c09")
 
-    variant("plugins", default=True, description="enable plugins, needed for gold linker")
+    variant("plugins", default=True, description="enable plugins (needed for gold linker)")
     # When you build ld.gold you automatically get ld, even when you add the
     # --disable-ld flag
-    # The gold linker was removed in v2.44.
-    variant("gold", default=False, when="@:2.43 +ld", description="Build the gold linker.")
+    variant("gold", default=False, when="+ld", description="Build the gold linker.")
+    requires("+plugins", when="+gold",
+             msg="plugins are needed for the gold linker!")
     variant("libiberty", default=False, description="Also install libiberty.")
     variant("nls", default=False, description="Enable Native Language Support")
     variant("headers", default=False, description="Install extra headers (e.g. ELF)")
@@ -71,10 +74,21 @@ class Binutils(AutotoolsPackage, GNUMirrorPackage):
         "pgo",
         default=False,
         description="Build with profile-guided optimization (slow)",
-        when="@2.37:",
+        when="@2.37: +lto",
     )
     variant("ld", default=False, description="Enable ld.")
     variant("gas", default=False, description="Enable as assembler.")
+
+    # When you build binutils with ~ld and +gas and load it in your PATH, you
+    # may end up with incompatibilities between a potentially older system ld
+    # and a recent assembler. For instance the linker on ubuntu 16.04 from
+    # binutils 2.26 and the assembler from binutils 2.36.1 will result in:
+    # "unable to initialize decompress status for section .debug_info"
+    # when compiling with debug symbols on gcc.
+    requires("+ld", when="+gas",
+             msg="Assembler `gas` must be paired with a matching `ld`\n"
+             "when used in later build processes!")
+
     variant("interwork", default=False, description="Enable interwork.")
     variant("gprofng", default=False, description="Enable gprofng.", when="@2.39:")
     variant(
@@ -86,8 +100,14 @@ class Binutils(AutotoolsPackage, GNUMirrorPackage):
     )
     variant(
         "compress_debug_sections",
+        # FIXME: this default is only valid if +zlib is in effect (as it currently is by default).
+        #        this often confuses and stumps the concretizer!
         default="zlib",
-        values=(conditional("zstd", when="@2.40:"), "zlib", "none"),
+        values=(
+            conditional("zstd", when='+zstd'),
+            conditional("zlib", when='+zlib'),
+            "none",
+        ),
         description="Enable debug section compression by default in ld, gas, gold.",
     )
     variant(
@@ -96,6 +116,42 @@ class Binutils(AutotoolsPackage, GNUMirrorPackage):
         description="Enable debuginfod HTTP server support for readelf and objdump",
         when="@2.34:",
     )
+    variant(
+        "vtable-verification",
+        default=False,
+        description="Enable the vtable verification feature",
+        when="@2.46:",
+    )
+    variant(
+        "libgdiagnostics",
+        default=True,
+        description="Build the libgdiagnostics shared library"
+    )
+    variant(
+        "zstd",
+        default=True,
+        description="Support zstd compression",
+        when="@2.40:",
+    )
+    variant(
+        "zlib",
+        default=True,
+        description="Use libz library for compression",
+    )
+    variant(
+        "gnu-prefixed",
+        values=("symlinked", "only-g", "no-g"),
+        default='symlinked',
+        description="Whether and how to provide 'g'-prefixed names for each tool.\n"
+        "- 'symlinked' will provide g-prefixed names alongside the standard ones,\n"
+        "- 'only-g' will *only* provide g prefixes,\n"
+        "- 'no-g' will *only* use the standard names for executables in the install prefix.",
+    )
+    # To avoid namespace collisions with Darwin/BSD system tools,
+    # prefix executables with "g", e.g., gar, gnm; see Homebrew
+    # https://github.com/Homebrew/homebrew-core/blob/master/Formula/binutils.rb
+    requires('gnu-prefixed=only-g', when="platform=darwin",
+             msg="Supposedly macOS doesn't like gnu tools without the 'g' on the PATH.")
 
     # 2.36 is missing some dependencies, this patch allows a parallel build.
     # https://sourceware.org/bugzilla/show_bug.cgi?id=27482
@@ -105,14 +161,21 @@ class Binutils(AutotoolsPackage, GNUMirrorPackage):
     depends_on("c", type="build")
     depends_on("cxx", type="build")
 
+    provides("ld", when="+ld")
+    provides("as", when="+gas")
+    provides("ranlib")
+    provides("nm")
+    provides("strip")
+    provides("ar")
+
     # compression libs for debug symbols.
-    depends_on("zstd@1.4.0:", when="@2.40:")
-    depends_on("zlib-api")
+    depends_on("zstd@1.4.0:", when="+zstd")
+    depends_on("zlib-api", when='+zlib')
 
     depends_on("elfutils+debuginfod", when="+debuginfod")
 
     # pkg-config is used to locate zstd, libdebuginfod
-    depends_on("pkgconfig", type="build")
+    depends_on("pkg-config", type="build")
     depends_on("diffutils", type="build")
 
     depends_on("gettext", when="+nls")
@@ -136,18 +199,6 @@ class Binutils(AutotoolsPackage, GNUMirrorPackage):
             when="@2.37:2.40,2.42:",
             msg="https://github.com/spack/spack/issues/35817",
         )
-
-    conflicts(
-        "~lto", when="+pgo", msg="Profile-guided optimization enables link-time optimization"
-    )
-
-    # When you build binutils with ~ld and +gas and load it in your PATH, you
-    # may end up with incompatibilities between a potentially older system ld
-    # and a recent assembler. For instance the linker on ubuntu 16.04 from
-    # binutils 2.26 and the assembler from binutils 2.36.1 will result in:
-    # "unable to initialize decompress status for section .debug_info"
-    # when compiling with debug symbols on gcc.
-    conflicts("+gas", "~ld", msg="Assembler not always compatible with system ld")
 
     @classmethod
     def determine_version(cls, exe):
@@ -250,7 +301,6 @@ class AutotoolsBuilder(autotools.AutotoolsBuilder):
             "--enable-pic",
             "--enable-targets={}".format(targets),
             "--with-sysroot=/",
-            "--with-system-zlib",
             *self.enable_or_disable("gas"),
             *self.enable_or_disable("gold"),
             *self.enable_or_disable("gprofng"),
@@ -262,6 +312,8 @@ class AutotoolsBuilder(autotools.AutotoolsBuilder):
             *self.enable_or_disable("nls"),
             *self.enable_or_disable("plugins"),
             *self.with_or_without("debuginfod"),
+            *self.with_or_without("system-zlib", variant="zlib"),
+            *self.with_or_without("zstd"),
         ]
         if self.spec.satisfies("+pgo"):
             args.append("--enable-pgo-build=lto")
@@ -280,10 +332,32 @@ class AutotoolsBuilder(autotools.AutotoolsBuilder):
         # To avoid namespace collisions with Darwin/BSD system tools,
         # prefix executables with "g", e.g., gar, gnm; see Homebrew
         # https://github.com/Homebrew/homebrew-core/blob/master/Formula/binutils.rb
-        if self.spec.satisfies("platform=darwin"):
+        pfxed = self.spec.variants['gnu-prefixed'].value
+        if pfxed == 'only-g':
             args.append("--program-prefix=g")
+        elif pfxed == 'no-g':
+            pass
+        else:
+            assert pfxed == 'symlinked', pfxed
+
+        if self.spec.satisfies('+vtable-verification'):
+            args.append('--enable-vtable-verify')
+        args.extend(self.enable_or_disable("libgdiagnostics"))
+
+        if self.spec.satisfies('@2.40:'):
+            args.extend([
+                '--enable-year2038',
+            ])
 
         return args
+
+    @run_after("install", when="gnu-prefixed=symlinked")
+    def symlink_gnu_prefixes(self):
+        fd = os.open(self.prefix.bin, os.O_DIRECTORY)
+        for b in os.listdir(fd):
+            stat = os.lstat(el, dir_fd=fd)
+            if stat.st_mode & stat.S_IXUSR != 0:
+                symlink()
 
     @run_after("install", when="+headers")
     def install_headers(self):

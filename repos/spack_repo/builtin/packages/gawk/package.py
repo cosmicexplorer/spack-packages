@@ -33,6 +33,7 @@ class Gawk(AutotoolsPackage, GNUMirrorPackage):
 
     license("GPL-3.0-or-later")
 
+    version("5.4.1", sha256="07f6f7342b7febe4313fc2c2542ad93d64fe20ad8717200109f105a826f5fd37")
     version("5.4.0", sha256="3dd430f0cd3b4428c6c3f6afc021b9cd3c1f8c93f7a688dc268ca428a90b4ac1")
     version("5.3.2", sha256="f8c3486509de705192138b00ef2c00bbbdd0e84c30d5c07d23fc73a9dc4cc9cc")
     version("5.3.1", sha256="694db764812a6236423d4ff40ceb7b6c4c441301b72ad502bb5c27e00cd56f78")
@@ -45,13 +46,28 @@ class Gawk(AutotoolsPackage, GNUMirrorPackage):
     version("4.1.4", sha256="53e184e2d0f90def9207860531802456322be091c7b48f23fdc79cda65adc266")
 
     variant("nls", default=False, description="Enable Native Language Support")
+    variant("opt", default=False, description="Build with -O3", when="@5.4:")
+
+    variant("pic", values=(any_combination_of("yes", "no")
+                           .prohibit_empty_set()
+                           .with_default("yes,no")),
+            description="Compile with position independent code")
+
+    variant(
+        "libs",
+        default="shared,static",
+        values=("shared", "static"),
+        multi=True,
+        description="Build shared libs, static libs or both",
+    )
 
     depends_on("c", type="build")
-    depends_on("gettext", when="+nls")
-    depends_on("libsigsegv", when="@:5.2")
-    depends_on("readline")
-    depends_on("mpfr")
-    depends_on("gmp")
+    depends_on("gettext", type=("build", "link"), when="+nls")
+    depends_on("libsigsegv", when="@:5.2", type="link")
+    depends_on("readline", type="link")
+    depends_on("mpfr", type="link")
+    depends_on("gmp", type="link")
+    depends_on("yacc", type="build")
 
     provides("awk")
 
@@ -63,11 +79,35 @@ class Gawk(AutotoolsPackage, GNUMirrorPackage):
         match = re.search(r"GNU Awk\s+([\d\.]+)", output)
         return match.group(1) if match else None
 
-    def configure_args(self):
-        args = self.enable_or_disable("nls")
+    def configure_args(self) -> list[str]:
+        args = [
+            '--disable-extensions'
+        ]
+        args.extend(self.enable_or_disable("nls"))
 
         # https://github.com/Homebrew/homebrew-core/blob/5b93511fd6b87789871e30c9fe0790949bd6634c/Formula/gawk.rb#L38,L42
         if self.spec.satisfies("platform=darwin target=aarch64:"):
             args.append("--disable-pma")
+
+        if self.spec.satisfies("@5.4:"):
+            args.extend([
+                f"--with-readline={self.spec['readline'].prefix}",
+                f"--with-mpfr={self.spec['mpfr'].prefix}",
+                '--enable-largefile',
+            ])
+            if self.spec.satisfies("+nls"):
+                args.extend([
+                    f"--with-libiconv-prefix={self.spec['gettext'].prefix}",
+                    f"--with-libintl-prefix={self.spec['gettext'].prefix}",
+                ])
+            if self.spec.satisfies('+opt'):
+                args.append('--enable-O3')
+
+        args.extend(self.enable_or_disable("libs"))
+        pic = self.spec.variants['pic'].value
+        if pic == 'yes':
+            args.append('--enable-pic')
+        elif pic == 'no':
+            args.append('--disable-pic')
 
         return args

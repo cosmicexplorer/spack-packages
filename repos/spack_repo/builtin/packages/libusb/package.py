@@ -18,6 +18,7 @@ class Libusb(AutotoolsPackage):
     license("LGPL-2.1-or-later")
 
     version("master", branch="master")
+    version("1.0.30", sha256="fea36f34f9156400209595e300840767ab1a385ede1dc7ee893015aea9c6dbaf")  # FIXME
     version("1.0.27", sha256="ffaa41d741a8a3bee244ac8e54a72ea05bf2879663c098c82fc5757853441575")
     version("1.0.26", sha256="12ce7a61fc9854d1d2a1ffe095f7b5fac19ddba095c259e6067a46500381b5a5")
     version("1.0.25", sha256="8a28ef197a797ebac2702f095e81975e2b02b2eeff2774fa909c78a74ef50849")
@@ -30,17 +31,33 @@ class Libusb(AutotoolsPackage):
     depends_on("c", type="build")  # generated
     depends_on("cxx", type="build")  # generated
 
+    variant(
+        "libs",
+        default="shared,static",
+        values=("shared", "static"),
+        multi=True,
+        description="Build shared libs, static libs or both",
+    )
+
     depends_on("autoconf", type="build", when="@master")
     depends_on("automake", type="build", when="@master")
     depends_on("libtool", type="build", when="@master")
+    depends_on("pkg-config", type="build")
 
-    @when("@master")
     def patch(self):
-        mkdir("m4")
+        mkdir("-p", "m4")
 
     def configure_args(self):
         args = []
+
+        args.extend(self.enable_or_disable("libs"))
         args.append("--disable-dependency-tracking")
         # no libudev/systemd package currently in spack
-        args.append("--disable-udev")
+        args.extend([
+            "--enable-udev",
+            '--enable-eventfd',
+            '--enable-timerfd',
+            '--enable-system-log',
+        ])
+
         return args

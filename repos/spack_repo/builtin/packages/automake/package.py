@@ -74,8 +74,13 @@ class Automake(AutotoolsPackage, GNUMirrorPackage):
                 shebang_string, "#!/usr/bin/env perl", files_to_be_patched_fmt.format(file)
             )
 
+    @property
+    def _pfx(self):
+        import spack.config
+        return Prefix(spack.config.substitute_path_variables(self.prefix))
+
     def _make_executable(self, name):
-        return Executable(join_path(self.prefix.bin, name))
+        return Executable(join_path(self._pfx.bin, name))
 
     def setup_dependent_package(self, module, dependent_spec):
         # Automake is very likely to be a build dependency,
@@ -85,8 +90,8 @@ class Automake(AutotoolsPackage, GNUMirrorPackage):
             setattr(module, name, self._make_executable(name))
 
     def _setup_dependent_env(self, env: EnvironmentModifications) -> None:
-        env.set("AUTOMAKE", self.spec.prefix.bin.automake)
-        env.set("ACLOCAL", self.spec.prefix.bin.aclocal)
+        env.set("AUTOMAKE", self._pfx.bin.automake)
+        env.set("ACLOCAL", self._pfx.bin.aclocal)
 
     def setup_run_environment(self, env: EnvironmentModifications) -> None:
         self._setup_dependent_env(env)

@@ -32,6 +32,8 @@ class Gnulib(Package):
 
     executables = ["^gnulib-tool$"]
 
+    provides("libgmp")
+
     # NB: this ends in a close paren!
     #     e.g.:
     # > gnulib-tool (GNU gnulib 2026-03-24)
@@ -55,14 +57,16 @@ class Gnulib(Package):
     # Also, the copy of maintain.texi in doc/ has a verbatim-copying license,
     # and doc/standards.texi and make-stds.texi are GFDL.  Most (but not all)
     # m4/*.m4 files have nearly unlimited licenses.
-    license("GPL-3.0-or-later")
+    license("GPL-3.0-or-later", checked_by="cosmicexplorer")
     # https://www.gnu.org/software/gnulib/manual/gnulib.html#Gnulib-licensing-1
 
-    version("202601", branch="stable-202601")
+    version("2026.06.30-snapshot", commit="33b284d370bed548036e664cc3feb68a63478044",
+            preferred=True)
+    version("2026.03.24-snapshot", commit="b75134c814c38876f04029ffc3fae4e90035dc34")
+    version("2026.01-stable", branch="stable-202601")
     version("master", branch="master")
-    version("2026-03-24", commit="b75134c814c38876f04029ffc3fae4e90035dc34")
 
-    variant("python", default=True,
+    variant("python", default=False,
             description="use the python implementation of gnulib-tool.py")
 
     depends_on("python@3:", when="+python", type="run")
@@ -71,12 +75,11 @@ class Gnulib(Package):
         install_tree(".", prefix)
 
     def setup_dependent_package(self, module, dependent_spec):
-        module.gnulib_tool = Executable(self.spec.prefix.bin.join("gnulib-tool"))
+        module.gnulib_tool = Executable(self.prefix.join("gnulib-tool"))
 
     def setup_dependent_build_environment(
         self, env: EnvironmentModifications, dependent_spec: Spec
     ) -> None:
-        # This is generally
         env.set("GNULIB_SRCDIR", self.prefix)
         if self.spec.satisfies("+python"):
             env.set("GNULIB_TOOL_IMPL", "py")

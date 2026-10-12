@@ -29,9 +29,16 @@ class Gcc(AutotoolsPackage, GNUMirrorPackage, CompilerPackage):
 
     license("GPL-2.0-or-later AND LGPL-2.1-or-later")
 
-    provides("c", "cxx", when="languages=c,c++")
-    provides("c", when="languages=c")
-    provides("cxx", when="languages=c++")
+    with when("languages=c"):
+        provides("c", "c_89", "c_99")
+        with when("@15:"):
+            provides("c_17", "c_21")
+    with when("languages=c++"):
+        provides("cxx")
+        with when("@15:"):
+            provides("cxx_20", "cxx_23", "cxx_26")
+
+
     provides("fortran", when="languages=fortran")
 
     # Latest stable
@@ -189,7 +196,7 @@ class Gcc(AutotoolsPackage, GNUMirrorPackage, CompilerPackage):
         description="Compilers and runtime libraries to build",
     )
     variant("binutils", default=True, description="Use binutils linker and assembler")
-    variant("mold", default=False, description="Use mold as the linker by default", when="@12:")
+    variant("mold", default=False, description="Use mold as the linker by default", when="@12:") #
     variant(
         "piclibs", default=False, description="Build PIC versions of libgfortran.a and libstdc++.a"
     )
@@ -258,7 +265,7 @@ class Gcc(AutotoolsPackage, GNUMirrorPackage, CompilerPackage):
     depends_on(
         "binutils+gas+ld+plugins~libiberty", when="+binutils", type=("build", "link", "run")
     )
-    depends_on("mold", when="+mold")
+    depends_on("mold", when="+mold", type=("build", "link", "run"))
     depends_on("zip", type="build", when="languages=java")
 
     # The server is sometimes a bit slow to respond

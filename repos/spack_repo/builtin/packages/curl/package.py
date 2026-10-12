@@ -12,16 +12,18 @@ from spack_repo.builtin.build_systems.cmake import CMakeBuilder, CMakePackage
 from spack_repo.builtin.build_systems.nmake import NMakeBuilder, NMakePackage
 
 from spack.package import *
+from spack.version import StandardVersion
 
 IS_WINDOWS = sys.platform == "win32"
 
 
-class Curl(NMakePackage, AutotoolsPackage, CMakePackage):
+class Curl(AutotoolsPackage, NMakePackage, CMakePackage):
     """cURL is an open source command line tool and library for
     transferring data with URL syntax"""
 
     homepage = "https://curl.se/"
     url = "https://curl.haxx.se/download/curl-7.78.0.tar.bz2"
+    git = "https://github.com/curl/curl.git"
 
     executables = ["^curl$"]
     tags = ["build-tools", "windows"]
@@ -30,6 +32,10 @@ class Curl(NMakePackage, AutotoolsPackage, CMakePackage):
 
     license("curl")
 
+    patch_libtool = False
+    install_libtool_archives = True
+
+    version("8.21.0", sha256="ad6f2f94934b38e31e48272833c99b891d045b4565fe942a53fbd27bd3910e16")
     version("8.20.0", sha256="4be48e69cf467246cb97d369b85d78a08528f2b37cffef2418ee16e6a4eb596e")
     version("8.19.0", sha256="eba3230c1b659211a7afa0fbf475978cbf99c412e4d72d9aa92d020c460742d4")
     version("8.18.0", sha256="ffd671a3dad424fb68e113a5b9894c5d1b5e13a88c6bdf0d4af6645123b31faf")
@@ -59,17 +65,29 @@ class Curl(NMakePackage, AutotoolsPackage, CMakePackage):
         ),
     }
 
-    variant("tls", default="openssl", **tls_args)
+    variant("tls", default="gnutls", **tls_args)
     variant("tls", default="sspi", when="platform=windows", **tls_args)
     variant("tls", default="secure_transport", when="platform=darwin @:8.14", **tls_args)
 
-    variant("nghttp2", default=True, description="build nghttp2 library (requires C++11)")
-    variant("libssh2", default=False, description="enable libssh2 support")
-    variant("libssh", default=False, description="enable libssh support")
+    variant("backtrace", default=True, description="build with backtrace support",
+            when='build_system=autotools')
+    variant("nghttp2", default=True, description="build nghttp2 library")
+    variant("nghttp3", default=True, description="build http/3 support")
+    variant("ngtcp2", default=True, description="build with QUIC support")
+    variant("libssh2", default=True, description="enable libssh2 support")
+    # FIXME: deprecate variants!
+    variant("libssh", default=False, description="[deprecated] enable libssh support")
     variant("gssapi", default=False, description="enable Kerberos support")
     variant("librtmp", default=False, description="enable Rtmp support")
     variant("ldap", default=False, description="enable ldap support")
-    variant("libidn2", default=False, description="enable libidn2 support")
+    variant("libidn2", default=True, description="enable libidn2 support")
+    variant("brotli", default=True, description="build with brotli support",
+            when='build_system=autotools')
+    variant("zlib", default=True, description="build with zlib-api support")
+    variant("zstd", default=True, description="build with zstd support",
+            when='build_system=autotools')
+    variant("uv", default=True, description="build with libuv support",
+            when='build_system=autotools')
     variant(
         "libs",
         default="shared,static" if not IS_WINDOWS else "shared",
@@ -78,44 +96,51 @@ class Curl(NMakePackage, AutotoolsPackage, CMakePackage):
         description="Build shared libs, static libs or both",
     )
 
+    # with when('build_system=autotools'):
+    #     variant("debug", default=False, description="Enable debug build flags.")
+    #     variant("opt", default=True, description="Enable optimizations.")
+    #     variant("verbose", default=True, description="Enable verbose strings.")
+
+
     with when("platform=windows build_system=cmake"):
         variant("static-crt", default=False, description="Link to static CRT")
         variant("unicode", default=False, description="Use the unicode version of Windows API")
 
-    conflicts("platform=linux", when="tls=secure_transport", msg="Only supported on macOS")
+    requires("platform=darwin", when="tls=secure_transport", msg="Only supported on macOS")
 
-    depends_on("c", type="build")  # generated
-    depends_on("cxx", type="build")  # generated
+    depends_on("c", type="build")
 
-    depends_on("pkgconfig", type="build", when="platform=darwin")
-    depends_on("pkgconfig", type="build", when="platform=linux")
-    depends_on("pkgconfig", type="build", when="platform=freebsd")
+    depends_on("pkg-config", type="build", when="platform=darwin")
+    depends_on("pkg-config", type="build", when="platform=linux")
+    depends_on("pkg-config", type="build", when="platform=freebsd")
 
     # CMake 4.0: is not compatible with CMake systems requiring
     # 3.0, which curl@7.63 requires
     depends_on("cmake@:3", type="build", when="build_system=cmake @:7.63")
 
-    depends_on("gnutls@3.6.5:", when="tls=gnutls @8.18:")
-    depends_on("gnutls", when="tls=gnutls")
+    depends_on("gnutls@3.6.5:", when="tls=gnutls @8.18:", type=("link", "run"))
+    depends_on("gnutls", when="tls=gnutls", type=("link", "run"))
     depends_on("mbedtls@3: +pic", when="tls=mbedtls @8.17:")
     depends_on("mbedtls@2: +pic", when="tls=mbedtls")
     depends_on("openssl@3:", when="tls=openssl @8.18:")
     depends_on("openssl", when="tls=openssl")
 
-    depends_on("libidn2", when="+libidn2")
-    depends_on("zlib-api")
-    depends_on("nghttp2", when="+nghttp2")
+    depends_on("libidn2", when="+libidn2", type="link")
+    depends_on("zlib-api", when="+zlib", type="link")
+    depends_on("nghttp2", when="+nghttp2", type="link")
+    depends_on("nghttp3", when="+nghttp3", type="link")
+    depends_on("ngtcp2", when="+ngtcp2", type="link")
     depends_on("libssh2", when="+libssh2")
     depends_on("libssh", when="+libssh")
     depends_on("krb5", when="+gssapi")
     depends_on("rtmpdump", when="+librtmp")
+    depends_on("zstd", when="+zstd", type=("link", "run"))
+    depends_on("brotli", when="+brotli", type="link")
+    depends_on("libbacktrace", when="+backtrace", type="link")
+    depends_on("libbacktrace+shared", when="+backtrace libs=shared", type="link")
+    depends_on("libuv", when="+uv", type="link")
 
-    # Perl pops up as a build-time dependency sometimes in curl.
-    # They try to fix it quickly when it happens.
-    # https://github.com/curl/curl/issues/12832
-    # https://github.com/curl/curl/issues/13508
-    # https://github.com/curl/curl/issues/18088
-    depends_on("perl", type="build", when="@8.15.0")
+    depends_on("c-ares", when="build_system=autotools", type=("link", "run"))
 
     build_system(
         "autotools",
@@ -123,6 +148,13 @@ class Curl(NMakePackage, AutotoolsPackage, CMakePackage):
         conditional("nmake", when="@:8.11 platform=windows"),
         default="cmake" if IS_WINDOWS else "autotools",
     )
+
+
+    with default_args(type="build", when="build_system=autotools"):
+        depends_on("autoconf@2.59:")
+        depends_on("automake@1.16:")
+        depends_on("libtool")
+        depends_on("ca-certificates-mozilla@2026:")
 
     @classmethod
     def determine_version(cls, exe):
@@ -165,36 +197,106 @@ class Curl(NMakePackage, AutotoolsPackage, CMakePackage):
         return flags, None, build_system_flags
 
 
-class BuildEnvironment:
-    def setup_dependent_build_environment(
-        self, env: EnvironmentModifications, dependent_spec: Spec
-    ) -> None:
-        if self.spec.satisfies("libs=static"):
-            env.append_flags("CFLAGS", "-DCURL_STATICLIB")
-            env.append_flags("CXXFLAGS", "-DCURL_STATICLIB")
-
-
 class AutotoolsBuilder(AutotoolsBuilder):
-    def configure_args(self):
+    def configure_args(self) -> list[str]:
         spec = self.spec
 
         args = [
-            "--with-zlib=" + spec["zlib-api"].prefix,
             # Prevent unintentional linking against system libraries: we could
             # add variants for these in the future
-            "--without-brotli",
             "--without-libgsasl",
             "--without-libpsl",
-            "--without-zstd",
-            "--disable-docs",
-            "--disable-manual",
+            "--enable-docs",
+            "--enable-manual",
         ]
 
-        args += self.enable_or_disable("libs")
+        args.extend(self.enable_or_disable("libs"))
+
+        if spec.satisfies('tls=gnutls'):
+            args.extend([
+                '--with-default-ssl-backend=gnutls',
+                '--without-ca-bundle',
+                '--without-ca-path',
+                '--without-ca-fallback',
+                f"--with-ca-embed={mozilla_ca_bundle}",
+                '--enable-websockets',
+                '--enable-hsts',
+                '--enable-headers-api',
+                '--enable-alt-svc',
+                '--enable-get-easy-options',
+                '--enable-dnsshuffle',
+                '--enable-sha512-256',
+                '--enable-progress-meter',
+                '--enable-netrc',
+                '--enable-dateparse',
+                '--enable-form-api',
+                '--enable-bindlocal',
+                '--enable-mime',
+                '--enable-doh',
+                '--enable-http-auth',
+                '--enable-socketpair',
+                '--enable-cookies',
+                '--enable-unix-sockets',
+                '--enable-tls-srp',
+                '--enable-ntlm',
+                '--enable-aws',
+                '--enable-negotiate-auth',
+                '--enable-kerberos-auth',
+                '--enable-digest-auth',
+                '--enable-basic-auth',
+                '--enable-bearer-auth',
+                '--enable-sspi',
+                '--enable-typecheck',
+                # this is redundant with c-ares apparently? the docs are useless:
+                # https://circumstances.run/@hipsterelectron/116948221193996710
+                # '--enable-threaded-resolver',
+                '--enable-versioned-symbols',
+                # FIXME!
+                '--enable-ca-search-safe',
+                '--enable-ca-native',
+                '--disable-openssl-auto-load-config',
+                '--enable-ipv6',
+                '--enable-libcurl-option',
+                '--enable-mqtt',
+                '--enable-gopher',
+                '--enable-smtp',
+                '--enable-smb',
+                '--enable-imap',
+                '--enable-pop3',
+                '--enable-tftp',
+                '--enable-telnet',
+                '--enable-dict',
+                '--enable-proxy',
+                '--enable-rtsp',
+                '--enable-ipfs',
+                '--enable-file',
+                '--enable-ftp',
+                '--enable-http',
+                '--enable-unity',
+                '--enable-largefile',
+                '--enable-year2038',
+                # apparently this only works with openssl?
+                # despite openssl not supporting http/3 itself?
+                # '--enable-proxy-http3',
+                '--enable-ssls-export',
+                # marked "experimental" for the last 3 years:
+                # https://github.com/curl/curl/blob/master/docs/ECH.md
+                # gnutls was stonewalled by cloudflare when they tried to implement:
+                # https://gitlab.com/gnutls/gnutls/-/work_items/595#note_1390322559
+                # but the EFF and senators love ECH apparently
+                # '--enable-ech',
+                # '--enable-httpsrr',
+                '--enable-optimize',
+                '--enable-warnings',
+                '--enable-verbose',
+                '--disable-rt',
+                f"--with-zsh-functions-dir={self.prefix}"
+            ])
+        args.append(f"--enable-ares={self.spec['c-ares'].prefix}")
 
         # Make gnutls / openssl decide what certs are trusted.
         # TODO: certs for other tls options.
-        if spec.satisfies("tls=gnutls") or spec.satisfies("tls=openssl"):
+        if spec.satisfies("@:8.20 tls=gnutls") or spec.satisfies("tls=openssl"):
             args.extend(["--without-ca-bundle", "--without-ca-path", "--with-ca-fallback"])
 
         if spec.satisfies("+gssapi"):
@@ -202,15 +304,34 @@ class AutotoolsBuilder(AutotoolsBuilder):
         else:
             args.append("--without-gssapi")
 
-        args += self.with_or_without("tls")
-        args += self.with_or_without("libidn2", activation_value="prefix")
-        args += self.with_or_without("librtmp")
-        args += self.with_or_without("nghttp2", activation_value="prefix")
-        args += self.with_or_without("libssh2", activation_value="prefix")
-        args += self.with_or_without("libssh", activation_value="prefix")
-        args += self.enable_or_disable("ldap")
+        args.extend(self.with_or_without("tls"))
+        args.extend(self.with_or_without("libidn2", activation_value="prefix"))
+        args.extend(self.with_or_without("librtmp"))
+        args.extend(self.with_or_without("nghttp2", activation_value="prefix"))
+        args.extend(self.with_or_without("nghttp3", activation_value="prefix"))
+        args.extend(self.with_or_without("ngtcp2", activation_value="prefix"))
+        args.extend(self.with_or_without("libssh2", activation_value="prefix"))
+        args.extend(self.with_or_without("libssh", activation_value="prefix"))
+        if '+ldap' in spec:
+            args.extend(['--enable-ldap', '--enable-ldaps'])
+        else:
+            args.extend(['--disable-ldap', '--disable-ldaps'])
+        args.extend(self.with_or_without('brotli'))
+        if spec.satisfies('+zlib'):
+            args.append(f"--with-zlib={spec['zlib-api'].prefix}")
+        args.extend(self.with_or_without('zstd'))
+        if '+backtrace' in spec:
+            args.append('--enable-backtrace')
+        if self.spec.satisfies('%c=gcc'):
+            args.append('--with-libgcc')
 
-        return args
+        return filter(None, args)
+
+    def with_or_without_librtmp(self, activated):
+        if activated:
+            return f"--with-librtmp={self.spec['librtmp'].prefix}"
+        elif self.spec.version < StandardVersion.from_string("8.21"):
+            return '--without-librtmp'
 
     def with_or_without_gnutls(self, activated):
         if activated:
@@ -230,14 +351,20 @@ class AutotoolsBuilder(AutotoolsBuilder):
         else:
             return "--without-openssl"
 
+    def with_or_without_sspi(self, activated):
+        if activated:
+            return f"--with-sspi={self.spec['sspi'].prefix}"
+        elif self.spec.version < StandardVersion.from_string("8.21"):
+            return '--without-sspi'
+
     def with_or_without_secure_transport(self, activated):
         if activated:
             return "--with-secure-transport"
-        else:
+        elif self.spec.version < StandardVersion.from_string("8.21"):
             return "--without-secure-transport"
 
 
-class NMakeBuilder(BuildEnvironment, NMakeBuilder):
+class NMakeBuilder(NMakeBuilder):
     phases = ["install"]
 
     def nmake_args(self):
@@ -314,7 +441,7 @@ class CMakeBuilder(CMakeBuilder):
             self.define("BUILD_EXAMPLES", False),
             self.define("CURL_BROTLI", False),
             self.define("CURL_USE_GSASL", False),
-            self.define("CURL_ZSTD", False),
+            self.define_from_variant("CURL_ZSTD", "zstd"),
             self.define("ENABLE_CURL_MANUAL", False),
             self.define_from_variant("CURL_USE_LIBSSH2", "libssh2"),
             self.define_from_variant("CURL_USE_LIBSSH", "libssh"),

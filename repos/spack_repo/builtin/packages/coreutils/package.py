@@ -106,7 +106,6 @@ class Coreutils(AutotoolsPackage, GNUMirrorPackage):
         depends_on("autoconf@2.64:")
         depends_on("automake@1.11.2:")
         depends_on("bison")
-        depends_on("git@1.5.5:")
         depends_on("gperf")
         depends_on("gzip")
         depends_on("help2man")
@@ -151,7 +150,10 @@ class Coreutils(AutotoolsPackage, GNUMirrorPackage):
     @when("+gnulib")
     def autoreconf(self, spec, prefix):
         bootstrap = Executable("./bootstrap")
-        bootstrap("--pull", "--gen", "--bootstrap-sync", "--skip-po")
+        if spec.satisfies('+nls'):
+            bootstrap("--no-bootstrap-sync", "--no-git", "--gen", "--force")
+        else:
+            bootstrap("--no-bootstrap-sync", "--no-git", "--gen", "--force", "--skip-po")
 
     def configure_args(self):
         configure_args = []

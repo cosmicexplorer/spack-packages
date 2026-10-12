@@ -19,7 +19,7 @@ class Rust(Package):
 
     tags = ["build-tools"]
 
-    maintainers("alecbcs")
+    maintainers("alecbcs", "cosmicexplorer")
 
     license("Apache-2.0 OR MIT")
 

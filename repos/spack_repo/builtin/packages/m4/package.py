@@ -112,11 +112,27 @@ class M4(AutotoolsPackage, GNUMirrorPackage):
         match = re.search(r"GNU M4\)?\s+(\S+)", output)
         return match.group(1) if match else None
 
+    @property
+    def _pfx(self):
+        import spack.config
+        return Prefix(spack.config.substitute_path_variables(self.spec.prefix))
+
+    @property
+    def _self_pfx(self):
+        import spack.config
+        return Prefix(spack.config.substitute_path_variables(self.prefix))
+
     def _setup_dependent_env(self, env: EnvironmentModifications) -> None:
         # Inform autom4te if it wasn't built correctly (some external
         # installations such as homebrew). See
         # https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/autom4te-Invocation.html
-        env.set("M4", self.prefix.bin.m4)
+        env.set("M4", self._self_pfx.bin.m4)
+
+    def _make_executable(self, name):
+        return Executable(join_path(self._self_pfx.bin, name))
+
+    def setup_dependent_package(self, module, dependent_spec):
+        setattr(module, 'm4', self._make_executable('m4'))
 
     def setup_dependent_build_environment(
         self, env: EnvironmentModifications, dependent_spec: Spec
@@ -174,7 +190,7 @@ class M4(AutotoolsPackage, GNUMirrorPackage):
 
     def test_version(self):
         """ensure m4 version matches installed spec"""
-        m4 = which(self.prefix.bin.m4, required=True)
+        m4 = which(self._self_pfx.bin.m4, required=True)
         out = m4("--version", output=str.split, error=str.split)
         assert str(self.spec.version) in out
 
@@ -182,7 +198,7 @@ class M4(AutotoolsPackage, GNUMirrorPackage):
         """ensure m4 hello example runs"""
         test_data_dir = self.test_suite.current_test_data_dir
         hello_file = test_data_dir.join("hello.m4")
-        m4 = which(self.prefix.bin.m4, required=True)
+        m4 = which(self._self_pfx.bin.m4, required=True)
         out = m4(hello_file, output=str.split, error=str.split)
 
         expected = get_escaped_text_output(test_data_dir.join("hello.out"))

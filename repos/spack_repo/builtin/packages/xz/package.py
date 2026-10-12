@@ -11,6 +11,7 @@ from spack_repo.builtin.build_systems.msbuild import MSBuildBuilder, MSBuildPack
 from spack_repo.builtin.build_systems.sourceforge import SourceforgePackage
 
 from spack.package import *
+from spack.version import ConcreteVersion, StandardVersion
 
 
 class Xz(MSBuildPackage, AutotoolsPackage, SourceforgePackage):
@@ -22,10 +23,18 @@ class Xz(MSBuildPackage, AutotoolsPackage, SourceforgePackage):
     homepage = "https://tukaani.org/xz/"
     sourceforge_mirror_path = "lzmautils/files/xz-5.2.5.tar.bz2"
     list_url = "https://tukaani.org/xz/old.html"
+    codeberg_url = "https://codeberg.org/tukaani/xz/releases/download/v{0}/xz-{0}.tar.bz2"
+    git = "https://codeberg.org/tukaani/xz.git"
 
-    maintainers("AlexanderRichert-NOAA")
+    maintainers("AlexanderRichert-NOAA", "cosmicexplorer")
 
-    executables = [r"^xz$"]
+    _min_codebeberg_release = StandardVersion.from_string('5.8.2')
+    def url_for_version(self, version: ConcreteVersion) -> str:
+        if version >= self.__class__._min_codebeberg_release:
+            return self.__class__.codeberg_url.format(version.dotted)
+        return super().url_for_version(version)
+
+    executables = [r"^xz", r'^lzma']
 
     license("GPL-2.0-or-later AND Public-Domain AND LGPL-2.1-or-later", checked_by="tgamblin")
 
@@ -48,7 +57,10 @@ class Xz(MSBuildPackage, AutotoolsPackage, SourceforgePackage):
     version("5.2.1", sha256="679148f497e0bff2c1adce42dee5a23f746e71321c33ebb0f641a302e30c2a80")
     version("5.2.0", sha256="f7357d7455a1670229b3cca021da71dd5d13b789db62743c20624bdffc9cc4a5")
 
-    variant("pic", default=False, description="Compile with position independent code")
+    variant("pic", values=(any_combination_of("yes", "no")
+                           .prohibit_empty_set()
+                           .with_default("yes,no")),
+            description="Compile with position independent code")
 
     variant(
         "libs",
@@ -58,12 +70,20 @@ class Xz(MSBuildPackage, AutotoolsPackage, SourceforgePackage):
         description="Build shared libs, static libs or both",
     )
 
+    variant(
+        "nls",
+        default=False,
+        description="Build in gettext for language support."
+    )
+
     depends_on("c", type="build")
+
+    depends_on("gettext", when="+nls", type=("build", "link"))
 
     # xz-5.2.7/src/liblzma/common/common.h:56 uses attribute __symver__ instead of
     # __asm__(.symver) for newer GCC releases.
     conflicts("%intel", when="@5.2.7", msg="icc does not support attribute __symver__")
-    conflicts("platform=windows", when="+pic")  # no pic on Windows
+    conflicts("platform=windows", when="pic=yes")  # no pic on Windows
     # prior to 5.2.3, build system is for MinGW only, not currently supported by Spack
     conflicts("platform=windows", when="@:5.2.3")
     conflicts("platform=windows", when="@5.6:")  # CMake is required
@@ -74,21 +94,38 @@ class Xz(MSBuildPackage, AutotoolsPackage, SourceforgePackage):
         sha256="32228638c462651ec7dedab706d05aa352995f064ace2dee915f31c75cc995c0",
     )
 
-    build_system(conditional("msbuild", when="platform=windows"), "autotools", default="autotools")
-
-    def flag_handler(self, name, flags):
-        if name == "cflags" and "+pic" in self.spec:
-            flags.append(self.compiler.cc_pic_flag)
-        return (flags, None, None)
+    build_system(
+        "autotools",
+        conditional("msbuild", when="platform=windows"),
+        default="autotools")
 
     @property
     def libs(self):
+        if self.spec.satisfies('libs=shared'):
+            result = find_libraries(
+                ["liblzma"],
+                root=self.prefix,
+                recursive=True,
+                shared=True,
+            )
+            if self.spec.satisfies('libs=static'):
+                return result + find_libraries(
+                    ["liblzma"],
+                    root=self.prefix,
+                    recursive=True,
+                    shared=False,
+                )
+            return result
         return find_libraries(
             ["liblzma"],
             root=self.prefix,
             recursive=True,
-            shared=self.spec.satisfies("libs=shared"),
+            shared=False,
         )
+
+    @property
+    def headers(self):
+        return find_headers(["lzma"], root=self.prefix, recursive=True)
 
     @classmethod
     def determine_version(cls, exe):
@@ -99,7 +136,30 @@ class Xz(MSBuildPackage, AutotoolsPackage, SourceforgePackage):
 
 class AutotoolsBuilder(AutotoolsBuilder):
     def configure_args(self):
-        return self.enable_or_disable("libs")
+        args = [
+            '--enable-largefile',
+            '--enable-year2038',
+            '--enable-symbol-versioning',
+            '--disable-sandbox',
+            '--enable-threads',
+        ]
+
+        args.extend(self.enable_or_disable("libs"))
+        pic = self.spec.variants['pic'].value
+        if pic == 'yes':
+            args.append('--enable-pic')
+        elif pic == 'no':
+            args.append('--disable-pic')
+
+        if '+nls' in self.spec:
+            args.extend([
+                f"--with-libiconv-prefix={self.spec['gettext'].prefix}",
+                f"--with-libintl-prefix={self.spec['gettext'].prefix}",
+            ])
+        else:
+            args.append('--disable-nls')
+
+        return args
 
     @run_after("install")
     def darwin_fix(self):

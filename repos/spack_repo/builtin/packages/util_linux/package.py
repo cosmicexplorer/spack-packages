@@ -16,9 +16,11 @@ class UtilLinux(AutotoolsPackage):
     url = "https://www.kernel.org/pub/linux/utils/util-linux/v2.29/util-linux-2.29.2.tar.gz"
     list_url = "https://www.kernel.org/pub/linux/utils/util-linux"
     list_depth = 1
+    git = "https://github.com/util-linux/util-linux.git"
 
     license("GPL-2.0-only", checked_by="wdconinc")
 
+    version("2.42.2", sha256="e73fe91d9b536c6e3548132c1e327843b0bac3c94be9f158ce112eb989d25fc7")
     version("2.42.1", sha256="36d2cfa2ae336732e144c36ceafdf3ed86319f5d7413a49bedb0a773e7833fe3")
     version("2.41.4", sha256="843d7bfb2c9a3413cd9ba4f6d7580e73761b06f7264832d5a2fcb5cc1563b938")
 

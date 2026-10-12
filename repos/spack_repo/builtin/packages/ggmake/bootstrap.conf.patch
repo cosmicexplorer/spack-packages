@@ -1,0 +1,23 @@
+diff --git a/bootstrap.conf b/bootstrap.conf
+index 287ecd02..bc39393e 100644
+--- a/bootstrap.conf
++++ b/bootstrap.conf
+@@ -49,17 +49,15 @@ automake   1.16.5
+ gnulib_name=libgnu
+ gnulib_files="doc/make-stds.texi m4/sig_atomic_t.m4"
+ 
+ # Using the full strtoll module pulls in a lot of stuff.  But, it's pretty
+ # simple to use just the base source file, so pull that.  We'll use it in
+ # src/misc.c if strtoll() is not found.
+ gnulib_files="$gnulib_files lib/strtol.c"
+ 
+ gnulib_modules="\
+ alloca
+-fdl
+ findprog-in
+ getloadavg
+ host-cpu-c-abi
+ largefile
+-make-glob
+-make-macros"
++year2038"

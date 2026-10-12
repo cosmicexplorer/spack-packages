@@ -19,6 +19,7 @@ class Sed(AutotoolsPackage, GNUMirrorPackage):
 
     license("GPL-3.0-or-later")
 
+    version("4.10", sha256="b8e72182b2ec96a3574e2998c47b7aaa64cc20ce000d8e9ac313cc07cecf28c7")
     version("4.9", sha256="6e226b732e1cd739464ad6862bd1a1aba42d7982922da7a53519631d24975181")
     version("4.8", sha256="f79b0cfea71b37a8eeec8490db6c5f7ae7719c35587f21edb0617f370eeff633")
     version("4.2.2", sha256="f048d1838da284c8bc9753e4506b85a1e0cc1ea8999d36f6995bcb9460cddbd7")
@@ -27,12 +28,19 @@ class Sed(AutotoolsPackage, GNUMirrorPackage):
     version("master", branch="master")
     version("arbitrary", commit="0e2491480a2ccb4736aa919c1d7bd197fcaee885")
 
-    depends_on("c", type="build")  # generated
+    variant("nls", default=False, description="Enable Native Language Support")
+    variant("static", default=False, description="Build without dynamic library deps")
+
+    depends_on("c", type="build")
+    depends_on("gettext", type=("build", "link"), when="+nls")
+    depends_on("gnulib", type="build", when="@4.10:")
+
+    provides("posix-sed")
 
     # Avoid symlinking GNUMakefile to GNUMakefile
     build_directory = "spack-build"
 
-    executables = ["^sed$"]
+    executables = [r"^g?sed$"]
 
     tags = ["build-tools"]
 
@@ -58,3 +66,34 @@ class Sed(AutotoolsPackage, GNUMirrorPackage):
             if self.spec.satisfies("%oneapi@2023.0.0:"):
                 flags.append("-Wno-error=incompatible-function-pointer-types")
         return (flags, None, None)
+
+    def configure_args(self) -> list[str]:
+        args = [
+            '--with-packager=spack-sed',
+            '--with-packager-bug-reports=dmc2@amass.energy',
+        ]
+        args.extend(self.enable_or_disable("nls"))
+
+        if self.spec.satisfies("@4.10:"):
+            args.extend([
+                '--enable-year2038',
+                '--enable-largefile',
+                f"--with-gnulib-prefix={self.spec['gnulib'].prefix}",
+                f"--with-packager-version=gnulib-{self.spec['gnulib'].version}",
+            ])
+
+        if self.spec.satisfies("+nls"):
+            args.extend([
+                f"--with-libiconv-prefix={self.spec['gettext'].prefix}",
+                f"--with-libintl-prefix={self.spec['gettext'].prefix}",
+            ])
+
+        if self.spec.satisfies('+static'):
+            args.append('LDFLAGS=-static')
+
+        return args
+
+    @run_after("install")
+    def add_g_suffix(self) -> None:
+        with working_dir(self.prefix.bin):
+            symlink('sed', 'gsed')

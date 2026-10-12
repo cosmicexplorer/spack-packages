@@ -27,8 +27,16 @@ class Help2man(AutotoolsPackage, GNUMirrorPackage):
 
     depends_on("perl", type=("build", "run"))
 
+    def _pfx(self):
+        import spack.config
+        return Prefix(spack.config.substitute_path_variables(self.spec.prefix))
+
+    def _self_pfx(self):
+        import spack.config
+        return Prefix(spack.config.substitute_path_variables(self.prefix))
+
     def _setup_dependent_env(self, env: EnvironmentModifications) -> None:
-        env.set("HELP2MAN", self.spec.prefix.bin.help2man)
+        env.set("HELP2MAN", self._pfx.bin.help2man)
 
     def setup_dependent_build_environment(
         self, env: EnvironmentModifications, dependent_spec: Spec,

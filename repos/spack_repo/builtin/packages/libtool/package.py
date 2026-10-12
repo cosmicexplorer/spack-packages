@@ -42,10 +42,12 @@ class Libtool(AutotoolsPackage, GNUMirrorPackage):
 
     license("LGPL-2.0-or-later AND GPL-2.0-or-later")
 
+
     version("2.6.1-git", tag="v2.6.1",
             commit="79de7bb71bc0a1167f4c4ae8bd897976a0ff2b51")
     version("master", branch="master", submodules=True)
-    version("2.6.0", sha256="80c3fe2ae1062abf56456f52518bd670f9ec3917b7f85e152b347ac6b6faf880")
+    version("2.6.0", sha256="80c3fe2ae1062abf56456f52518bd670f9ec3917b7f85e152b347ac6b6faf880",
+            preferred=True)
     version("2.5.4", sha256="da8ebb2ce4dcf46b90098daf962cffa68f4b4f62ea60f798d0ef12929ede6adf")
     version("2.4.7", sha256="04e96c2404ea70c590c546eba4202a4e12722c640016c12b9b2f1ce3d481e9a8")
     version("2.4.6", sha256="e3bd4d5d3d025a36c21dd6af7ea818a2afcd4dfc1ea5a17b39d7854bcd0c06e3")
@@ -95,11 +97,21 @@ class Libtool(AutotoolsPackage, GNUMirrorPackage):
         Executable("./bootstrap")()
 
     @property
+    def _self_pfx(self):
+        import spack.config
+        return Prefix(spack.config.substitute_path_variables(self.prefix))
+
+    @property
+    def _pfx(self):
+        import spack.config
+        return Prefix(spack.config.substitute_path_variables(self.spec.prefix))
+
+    @property
     def libs(self):
-        return find_libraries(["libltdl"], root=self.prefix, recursive=True, shared=True)
+        return find_libraries(["libltdl"], root=self._self_pfx, recursive=True, shared=True)
 
     def _make_executable(self, name):
-        return Executable(join_path(self.prefix.bin, name))
+        return Executable(join_path(self._self_pfx.bin, name))
 
     def patch(self):
         # Remove flags not recognized by the NVIDIA compiler
@@ -108,8 +120,8 @@ class Libtool(AutotoolsPackage, GNUMirrorPackage):
             filter_file("-fno-builtin", "-Mnobuiltin", "libltdl/configure")
 
     def _setup_exe_env_vars(self, env: EnvironmentModifications) -> None:
-        env.set("LIBTOOL", self.spec.prefix.bin.libtool)
-        env.set("LIBTOOLIZE", self.spec.prefix.bin.libtoolize)
+        env.set("LIBTOOL", self._pfx.bin.libtool)
+        env.set("LIBTOOLIZE", self._pfx.bin.libtoolize)
 
     def setup_run_environment(self, env: EnvironmentModifications) -> None:
         self._setup_exe_env_vars(env)
@@ -123,7 +135,7 @@ class Libtool(AutotoolsPackage, GNUMirrorPackage):
         self, env: EnvironmentModifications, dependent_spec: Spec
     ) -> None:
         self._setup_exe_env_vars(env)
-        env.append_path("ACLOCAL_PATH", self.prefix.share.aclocal)
+        env.append_path("ACLOCAL_PATH", self._self_pfx.share.aclocal)
 
     def setup_dependent_package(self, module, dependent_spec):
         # Automake is very likely to be a build dependency, so we add
@@ -144,9 +156,9 @@ class Libtool(AutotoolsPackage, GNUMirrorPackage):
         # platforms, build systems sometimes expect to use the assumed
         # GNU commands glibtool and glibtoolize instead of the BSD
         # variant; this happens frequently, for instance, on Darwin
-        symlink(join_path(self.prefix.bin, "libtool"), join_path(self.prefix.bin, "glibtool"))
+        symlink(join_path(self._self_pfx.bin, "libtool"), join_path(self._self_pfx.bin, "glibtool"))
         symlink(
-            join_path(self.prefix.bin, "libtoolize"), join_path(self.prefix.bin, "glibtoolize")
+            join_path(self._self_pfx.bin, "libtoolize"), join_path(self._self_pfx.bin, "glibtoolize")
         )
 
     def setup_build_environment(self, env: EnvironmentModifications) -> None:

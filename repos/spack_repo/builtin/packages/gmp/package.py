@@ -21,6 +21,8 @@ class Gmp(AutotoolsPackage, GNUMirrorPackage):
 
     maintainers("cosmicexplorer")
 
+    provides("libgmp")
+
     version("6.3.0", sha256="ac28211a7cfb609bae2e2c8d6058d66c8fe96434f740cf6fe2e47b000d1c20cb")
     version("6.2.1", sha256="eae9326beb4158c386e39a356818031bd28f3124cf915f8c5b1dc4c7a36b4d7c")
     version("6.2.0", sha256="f51c99cb114deb21a60075ffb494c1a210eb9d7cb729ed042ddb7de9534451ea")
@@ -35,10 +37,11 @@ class Gmp(AutotoolsPackage, GNUMirrorPackage):
     depends_on("c", type="build")
     depends_on("cxx", type="build", when="+cxx")
 
-    depends_on("autoconf", type="build")
-    depends_on("automake", type="build")
-    depends_on("libtool", type="build")
+    depends_on("autoconf@2.69:", type="build")
+    depends_on("automake@2:", type="build")
+    depends_on("libtool@2:", type="build")
     depends_on("m4", type="build")
+    depends_on("yacc", type="build")
 
     variant(
         "libs",
@@ -47,6 +50,12 @@ class Gmp(AutotoolsPackage, GNUMirrorPackage):
         multi=True,
         description="Build shared libs, static libs or both",
     )
+
+    variant("pic", values=(any_combination_of("yes", "no")
+                           .prohibit_empty_set()
+                           .with_default("yes,no")),
+            description="Compile with position independent code")
+
     variant("cxx", default=True, description="Enable C++ support")
 
     # avoid using register x18 on aarch64 machines to prevent segfaults
@@ -54,7 +63,7 @@ class Gmp(AutotoolsPackage, GNUMirrorPackage):
     patch("avoid-x18.diff", when="@6.2.1")
 
     # https://gmplib.org/repo/gmp/rev/8e7bb4ae7a18
-    patch("gcc15.patch", when="@6.1: %gcc@15:")
+    # patch("gcc15.patch", when="@6.1: %gcc@15:")
 
     # gmp's configure script seems to be broken; it sometimes misdetects
     # shared library support. Regenerating it fixes the issue.
@@ -70,9 +79,24 @@ class Gmp(AutotoolsPackage, GNUMirrorPackage):
             flags.append("-no-ftz")
         return (flags, None, None)
 
+    def setup_build_environment(self, env: EnvironmentModifications) -> None:
+        env.set("YACC", self.spec['yacc'].prefix.bin.yacc)
+
     def configure_args(self):
-        args = self.enable_or_disable("cxx")
-        args += self.enable_or_disable("libs")
-        if self.spec.satisfies("libs=static"):
-            args.append("--with-pic")
+        args = [
+            '--enable-alloca',
+            '--enable-assembly',
+            '--enable-fft',
+            '--enable-nails',
+            '--enable-fat',
+        ]
+
+        args.extend(self.enable_or_disable("cxx"))
+        args.extend(self.enable_or_disable("libs"))
+        pic = self.spec.variants['pic'].value
+        if pic == 'yes':
+            args.append('--enable-pic')
+        elif pic == 'no':
+            args.append('--disable-pic')
+
         return args

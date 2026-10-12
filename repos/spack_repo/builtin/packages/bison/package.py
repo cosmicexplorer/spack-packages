@@ -21,7 +21,7 @@ class Bison(AutotoolsPackage, GNUMirrorPackage):
 
     tags = ["build-tools"]
 
-    executables = ["^bison$"]
+    executables = ["^(bison|yacc)$"]
 
     license("GPL-3.0-or-later")
 
@@ -52,6 +52,7 @@ class Bison(AutotoolsPackage, GNUMirrorPackage):
     version("2.7", sha256="19bbe7374fd602f7a6654c131c21a15aebdc06cc89493e8ff250cb7f9ed0a831")
 
     variant("color", default=False, description="Enable experimental colored output", when="@3.4:")
+    variant("nls", default=True, description="Build with Native Language support.")
 
     # https://lists.gnu.org/archive/html/bug-bison/2019-08/msg00008.html
     patch("parallel.patch", when="@3.4.2")
@@ -61,7 +62,8 @@ class Bison(AutotoolsPackage, GNUMirrorPackage):
     depends_on("c", type="build")  # generated
     depends_on("cxx", type="build")  # generated
 
-    depends_on("gettext", when="+color")
+    depends_on("gettext", type=("build", "link"), when="+nls")
+    depends_on("readline", type="link")
     depends_on("m4@1.4.6:", type=("build", "run"))
     depends_on("diffutils", type="build")
 
@@ -89,3 +91,36 @@ class Bison(AutotoolsPackage, GNUMirrorPackage):
         output = Executable(exe)("--version", output=str, error=str)
         match = re.search(r"bison \(GNU Bison\)\s+(\S+)", output)
         return match.group(1) if match else None
+
+    def configure_args(self) -> list[str]:
+        args = [
+            '--enable-largefile',
+            '--enable-year2038',
+            '--enable-threads',
+            '--enable-relocatable',
+            '--enable-yacc',
+            f"--with-libreadline-prefix={self.spec['readline'].prefix}",
+        ]
+
+        if '+nls' in self.spec:
+            args.extend([
+                f"--with-libtextstyle-prefix={self.spec['gettext'].prefix}",
+                f"--with-libiconv-prefix={self.spec['gettext'].prefix}",
+                f"--with-libintl-prefix={self.spec['gettext'].prefix}",
+            ])
+        else:
+            args.append('--disable-nls')
+
+        return args
+
+    def find_libraries(self):
+        return find_libraries(["liby"], root=self.prefix.lib)
+
+    def setup_dependent_package(self, module, dependent_spec):
+        module.bison = Executable(self.prefix.bin.bison)
+        module.yacc = Executable(self.prefix.bin.yacc)
+
+    def setup_dependent_build_environment(self, env, dependent_spec):
+        env.prepend_path("ACLOCAL_PATH", self.prefix.share.aclocal)
+        env.set("YACC", self.prefix.bin.yacc)
+        env.set("BISON", self.prefix.bin.bison)

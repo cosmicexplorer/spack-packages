@@ -9,16 +9,26 @@ from spack.package import *
 
 class Boringssl(CMakePackage):
     """BoringSSL is a fork of OpenSSL that is developed by Google to meet Google's needs and is
-    generally considered more performant and secure than OpenSSL."""
+    generally considered more performant and secure than OpenSSL.
+
+    The ngtcp2 project has recommended at least a particular commit hash at one point,
+    making it slightly easier to trust:
+    <https://github.com/ngtcp2/ngtcp2/blob/713151dcef2b48e3f2d7977d091d8c92c0e9171d/README.rst>
+    """
+    docstring_has_extended_text = True
 
     homepage = "https://boringssl.googlesource.com/boringssl"
     git = "https://boringssl.googlesource.com/boringssl.git"
+
+    provides("tls")
 
     maintainers("ta7mid")
 
     license("Apache-2.0", checked_by="ta7mid")
 
     version("main", branch="main")
+    version("ngtcp2-recommended", commit="3c6315e00ab02d7bc9b8922aff1f85d8f81ee130",
+            preferred=True)
 
     variant(
         "no_asm",

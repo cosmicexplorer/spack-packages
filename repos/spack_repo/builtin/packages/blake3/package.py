@@ -40,6 +40,17 @@ class Blake3(CMakePackage):
     variant("tbb", when="@1.8.1:", default=True,
             description="build in the intel oneTBB parallelism library.")
 
-    depends_on("c", type="build")  # generated
+    depends_on("c", type="build")
+    depends_on("c_99", type="build")
+    depends_on("cxx", type="build")
+    depends_on("cxx_20", type="build")
 
-    depends_on("cmake@3.9:", type="build")
+    depends_on("cmake@3.12:", type="build")
+
+    depends_on("tbb", when="+tbb", type="link")
+
+    def cmake_args(self) -> list[str]:
+        return [
+            self.define_from_variant("BLAKE3_USE_TBB", "tbb"),
+            self.define("BLAKE3_FETCH_TBB", False),
+        ]

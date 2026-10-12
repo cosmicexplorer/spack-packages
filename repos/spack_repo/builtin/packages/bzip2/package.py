@@ -50,8 +50,8 @@ class Bzip2(Package, SourcewarePackage):
 
     depends_on("c", type="build")  # generated
 
-    depends_on("gmake", type="build", when="platform=linux")
-    depends_on("gmake", type="build", when="platform=darwin")
+    depends_on("make", type="build", when="platform=linux")
+    depends_on("make", type="build", when="platform=darwin")
 
     @classmethod
     def determine_version(cls, exe):

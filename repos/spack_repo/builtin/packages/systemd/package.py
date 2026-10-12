@@ -17,22 +17,34 @@ class Systemd(MesonPackage):
 
     homepage = "https://systemd.io/"
     url = "https://github.com/systemd/systemd/archive/refs/tags/v255.tar.gz"
+    git = "https://github.com/systemd/systemd.git"
+
     license("GPL-2.0-only")
 
+    maintainers("cosmicexplorer")
+
+    version("261.1", sha256="f9b9da1103d1714703503d1746971ccbeeae945663ef3ede3b7348169b5df064")
     version("256.7", sha256="896d76ff65c88f5fd9e42f90d152b0579049158a163431dd77cdc57748b1d7b0")
     version("255", sha256="28854ffb2cb5f9e07fcbdbaf1e03a80b3462a12edeef84893ca2f37b22e4491e")
 
-    depends_on("c", type="build")  # generated
+    depends_on("c", type="build")
+    depends_on("c_17", type="build")
 
     provides("libudev", when="@251:")
 
-    depends_on("meson@0.60.0:", type="build")
+    depends_on("libc", type=("build", "link"))
+
+    variant("mode", values=("developer", "release"),
+            default="developer",
+            description='enable mode-specific functionality')
+
+    depends_on("meson@1.3:", type="build")
     depends_on("ninja", type="build")
     depends_on("py-jinja2", type="build")
     depends_on("util-linux@2.30:")  # libmount
     depends_on("gperf")
     depends_on("libcap")
-    depends_on("pkgconfig")
+    depends_on("pkg-config", type="build")
 
     conflicts("%gcc@:8.4")
     conflicts("%clang@:7")

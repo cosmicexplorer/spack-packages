@@ -4,29 +4,31 @@
 
 import os
 import re
+from pathlib import Path
 
-from spack_repo.builtin.build_systems.generic import Package
-from spack_repo.builtin.build_systems.gnu import GNUMirrorPackage
+from spack_repo.builtin.build_systems import generic, gnu
 
 from spack.package import *
 
 
-class Gmake(Package, GNUMirrorPackage):
+class Gmake(generic.Package, gnu.GNUMirrorPackage):
     """GNU Make is a tool which controls the generation of executables and
     other non-source files of a program from the program's source files."""
 
     homepage = "https://www.gnu.org/software/make/"
     gnu_mirror_path = "make/make-4.2.1.tar.gz"
     maintainers("haampie")
-    git = "https://https.git.savannah.gnu.org/git/make.git"
 
     license("GPL-3.0-only")
 
     provides("make")
 
-    version("develop", branch="master")
-    version("4.4.1-git", tag="4.4.1", commit="d66a65ad5a0e31b287f53930b0f09e31801f1613")
-    version("4.4-git", tag="4.4", commit="ed493f6c9116cc217b99c2cfa6a95f15803235a2")
+    tags = ["build-tools"]
+
+    executables = ["^g?make$"]
+
+    # Avoid symlinking GNUMakefile to GNUMakefile
+    build_directory = "spack-build"
 
     # Stable releases
     version("4.4.1", sha256="dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3")
@@ -36,6 +38,7 @@ class Gmake(Package, GNUMirrorPackage):
     version("4.1", sha256="9fc7a9783d3d2ea002aa1348f851875a2636116c433677453cc1d1acc3fc4d55")
 
     variant("guile", default=False, description="Support GNU Guile for embedded scripting")
+    variant("static", default=False, description="Build a statically-linked binary.")
 
     depends_on("c", type="build")
 
@@ -57,15 +60,8 @@ class Gmake(Package, GNUMirrorPackage):
         when="@:4.2.1",
     )
 
-    # Avoid symlinking GNUMakefile to GNUMakefile
-    build_directory = "spack-build"
-
     # See https://savannah.gnu.org/bugs/?57962
     patch("findprog-in-ignore-directories.patch", when="@4.3")
-
-    tags = ["build-tools"]
-
-    executables = ["^make$"]
 
     @classmethod
     def determine_version(cls, exe):
@@ -75,13 +71,21 @@ class Gmake(Package, GNUMirrorPackage):
 
     def configure_args(self):
         args = [
-            "--with-guile" if self.spec.satisfies("+guile") else "--without-guile",
             "--disable-nls",
             # configure needs make to enable dependency tracking, disable explicitly
             "--disable-dependency-tracking",
         ]
         if self.spec.version >= Version("4.4"):
             args.append("--enable-year2038")
+
+        if self.spec.satisfies("+guile"):
+            args.append("--with-guile")
+        else:
+            args.append("--without-guile")
+
+        if self.spec.satisfies('+static'):
+            args.append('LDFLAGS=-static')
+
         return args
 
     def install(self, spec, prefix):
@@ -104,15 +108,20 @@ class Gmake(Package, GNUMirrorPackage):
 
     def setup_dependent_package(self, module, dependent_spec):
         module.make = MakeExecutable(
-            self.spec.prefix.bin.make,
+            self.prefix.bin.make,
             jobs=determine_number_of_jobs(parallel=dependent_spec.package.parallel),
+            supports_jobserver=True,
+        )
+        module.gmake = MakeExecutable(
+            self.prefix.bin.gmake,
+            jobs=determine_number_of_jobs(parallel=dependent_spec.package.parallel),
+            supports_jobserver=True,
         )
 
     # FIXME: these env vars are propagated through to the spack build, messing up the
     #        build environment. i believe `spack dev-build` may be broken.
     def _setup_dependent_env(self, env: EnvironmentModifications) -> None:
-        env.set("MAKE", self.spec.prefix.bin.make)
-        env.unset("MAKEFLAGS")
+        env.set("MAKE", self.prefix.bin.make)
 
     def setup_run_environment(self, env: EnvironmentModifications) -> None:
         self._setup_dependent_env(env)

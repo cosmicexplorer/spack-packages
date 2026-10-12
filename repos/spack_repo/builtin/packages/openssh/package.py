@@ -2,7 +2,9 @@
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
+import os
 import re
+import stat
 import socket
 
 from spack_repo.builtin.build_systems.autotools import AutotoolsPackage
@@ -26,6 +28,7 @@ class Openssh(AutotoolsPackage):
 
     license("SSH-OpenSSH")
 
+    version("10.4p1", sha256="ef6026dd2aea8d56059638d5d3262902c892ceba9f88395835e0d06d3fb63238")
     version("10.3p1", sha256="56682a36bb92dcf4b4f016fd8ec8e74059b79a8de25c15d670d731e7d18e45f4")
     with default_args(deprecated=True):
         # https://www.cvedetails.com/cve/CVE-2026-35414/

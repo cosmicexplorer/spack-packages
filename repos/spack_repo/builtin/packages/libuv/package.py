@@ -43,6 +43,9 @@ class Libuv(CMakePackage, AutotoolsPackage):
             "1.44.0", sha256="d969fc47b8e39ec909d3f8cfa6a6e616e7c370637068ce2d95fdfcbb7f8467f5"
         )
     else:
+        # FIXME: plat-specific resources!!
+        version("1.52.1", sha256="c5f14915e2fa7b83b6111c3bc477920559499e10d95f852707420c8725b82d6a",
+                preferred=True)
         version(
             "1.48.0", sha256="c593139feb9061699fdd2f7fde47bb6c1ca77761ae9ec04f052083f1ef46c13b"
         )

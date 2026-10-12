@@ -31,11 +31,17 @@ class Musl(MakefilePackage):
 
     license("MIT")
 
+    executables = [r'^musl-(gcc|clang)$']
+
     provides("libc")
     provides("iconv")
 
-    version("1.2.6", sha256="d585fd3b613c66151fc3249e8ed44f77020cb5e6c1e635a616d3f9f82460512a")
+    version("1.2.6", sha256="d585fd3b613c66151fc3249e8ed44f77020cb5e6c1e635a616d3f9f82460512a",
+            preferred=True)
+    version("1.2.6-snapshot", commit="5122f9f3c99fee366167c5de98b31546312921ab")
 
+    version("1.2.6-git", tag="v1.2.6",
+            commit="9fa28ece75d8a2191de7c5bb53bed224c5947417")
     version("1.2.5-git", tag="v1.2.5",
             commit="0784374d561435f7c787a555aeab8ede699ed298")
     version("develop", branch="master")
@@ -54,8 +60,6 @@ class Musl(MakefilePackage):
 
     depends_on("c", type="build")  # generated
 
-    conflicts("glibc")
-
     variant("optimize", values=("yes", "no", "auto"),
             default="yes",
             description="How to configure optimization settings. "
@@ -64,6 +68,7 @@ class Musl(MakefilePackage):
                             .prohibit_empty_set()
                             .with_default("shared,static")),
             description="Whether to build a static and/or shared library libc.")
+    # variant("wrapcc", values=("gcc", "clang", "none"))
 
     def patch(self):
         config = FileFilter("configure")
@@ -109,3 +114,5 @@ class Musl(MakefilePackage):
     @property
     def headers(self):
         return HeaderList([])
+
+    # def setup_dependent_package(self, module, dependent_spec):

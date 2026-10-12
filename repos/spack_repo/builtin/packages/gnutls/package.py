@@ -28,6 +28,8 @@ class Gnutls(AutotoolsPackage):
     sanity_check_is_file = ["include/gnutls/gnutls.h"]
     sanity_check_is_dir = ["lib", "share"]
 
+    provides("tls")
+
     # Version definitions
     version("master", branch="master")
     version("3.8.13", sha256="ffed8ec1bf09c2426d4f14aae377de4753b53e537d685e604e99a8b16ca9c97e")
@@ -55,6 +57,27 @@ class Gnutls(AutotoolsPackage):
     variant(
         "brotli", default=True, description="Enable brotli compression support", when="@3.7.4:"
     )
+    variant("tpm2", default=True,
+            description='build in support for tpm2 devices.')
+
+    variant("pic", values=(any_combination_of("yes", "no")
+                           .prohibit_empty_set()
+                           .with_default("yes,no")),
+            description="Compile with position independent code")
+
+    variant(
+        "libs",
+        default="shared,static",
+        values=("shared", "static"),
+        multi=True,
+        description="Build shared libs, static libs or both",
+    )
+
+    variant(
+        "nls",
+        default=False,
+        description="Build in gettext for language support."
+    )
 
     # Conflicts
     conflicts(
@@ -70,13 +93,14 @@ class Gnutls(AutotoolsPackage):
     )
 
     # Build dependencies
-    depends_on("pkgconfig", type="build")
+    depends_on("pkg-config", type="build")
     depends_on("libtool", type="build")
     depends_on("c", type="build")
     depends_on("cxx", type="build")
 
     # Required dependencies
-    depends_on("gettext")
+    depends_on("gettext", type=("build", "link"))
+    depends_on("yacc", type="build")
     # backward compat
     depends_on("libidn2")
     depends_on("libidn2@2.0:", when="@3.6.14:")
@@ -84,16 +108,20 @@ class Gnutls(AutotoolsPackage):
     depends_on("nettle@3.10:", when="@3.8.11:")
     depends_on("nettle@3.6:", when="@3.7:")
     depends_on("nettle@3.4.1:", when="@3.6.7.1:")
+    depends_on("nettle@4:", when="@3.8:")
     # forward compat
     depends_on("libidn2@:2.0", when="@:3.5")
-    depends_on("nettle@:3", when="@:3.8")
     depends_on("nettle@:2.9", when="@:3.3.9")
+    depends_on("nettle@:3", when="@:3.8")
 
     # Optional dependencies
     depends_on("guile", when="+guile")
-    depends_on("zlib-api", when="+zlib")
-    depends_on("brotli", when="+brotli")
-    depends_on("zstd", when="+zstd")
+    depends_on("zlib-api", when="+zlib", type="link")
+    depends_on("brotli", when="+brotli", type="link")
+    depends_on("zstd", when="+zstd", type="link")
+    depends_on("tpm2-tss", when="+tpm2", type="link")
+
+    depends_on("gnulib@2026.06.30-snapshot", type="build", when="@3.8:")
 
     build_directory = "spack-build"
 
@@ -109,21 +137,59 @@ class Gnutls(AutotoolsPackage):
             env.set("LDFLAGS", "-ldl")
 
     def configure_args(self):
-        args = ["--enable-static"]
+        args = [
+            "--enable-static",
+            '--without-tpm',
+            '--enable-year2038',
+            '--enable-largefile',
+            '--enable-threads',
+            '--enable-manpages',
+            '--disable-tls13-interop',
+            '--with-leancrypto',
+        ]
+
+
+        args.extend(self.enable_or_disable("libs"))
+        pic = self.spec.variants['pic'].value
+        if pic == 'yes':
+            args.append('--enable-pic')
+        elif pic == 'no':
+            args.append('--disable-pic')
+
+        if '+nls' in self.spec:
+            args.extend([
+                f"--with-libiconv-prefix={self.spec['gettext'].prefix}",
+                f"--with-libintl-prefix={self.spec['gettext'].prefix}",
+            ])
+        else:
+            args.append('--disable-nls')
 
         if self.spec.satisfies("@3.5:"):
             args.extend(
                 ["--with-included-libtasn1", "--with-included-unistring", "--without-p11-kit"]
             )
 
-        args.extend(self.with_or_without("zlib"))
-        args.extend(self.with_or_without("brotli"))
+        if '+zlib' in self.spec:
+            args.append('--with-zlib=link')
+        else:
+            args.append('--without-zlib')
+        if '+brotli' in self.spec:
+            args.append('--with-brotli=link')
+        else:
+            args.append('--without-brotli')
+        if '+zstd' in self.spec:
+            args.append('--with-zstd=link')
+        else:
+            args.append('--without-zstd')
+        if self.spec.satisfies("@3.8:"):
+            args.append(f"--with-gnulib-prefix={self.spec['gnulib'].prefix}")
+        if '+tpm2' in self.spec:
+            args.append('--with-tpm2=link')
+        else:
+            args.append('--without-tpm2')
 
         if self.spec.satisfies("@:3.7"):
             args.extend(self.enable_or_disable("guile"))
-
-        if self.spec.satisfies("@3.7:"):
-            args.extend(self.with_or_without("zstd"))
 
         if self.run_tests:
             args.extend(["--enable-tests", "--enable-valgrind-tests", "--enable-full-test-suite"])

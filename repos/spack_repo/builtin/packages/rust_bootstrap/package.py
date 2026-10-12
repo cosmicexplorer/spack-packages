@@ -15,7 +15,7 @@ class RustBootstrap(Package):
     homepage = "https://www.rust-lang.org"
     url = "https://static.rust-lang.org/dist/rust-1.65.0-aarch64-apple-darwin.tar.gz"
 
-    maintainers("alecbcs")
+    maintainers("alecbcs", "cosmicexplorer")
 
     skip_version_audit = ["platform=windows"]
 
@@ -169,7 +169,11 @@ class RustBootstrap(Package):
         },
     }
 
-    # Normalize architectures returned by platform to those used by the
+    # Both the Rust and Python projects alike delight in generating synonyms of minute edit distance
+    # which are nonetheless completely incompatible, like "amd64" vs "arm64".
+    # Luckily, we get the opportunity to translate between them!
+
+    # Translate architectures returned by platform to those used by the
     # Rust project.
     rust_targets = {
         "aarch64": "aarch64",
