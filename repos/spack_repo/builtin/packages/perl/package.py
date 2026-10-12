@@ -40,6 +40,7 @@ class Perl(Package):  # Perl doesn't use Autotools, it should subclass Package
 
     version("5.43.10", sha256="204a95d68232f51cdee674c2e1d733cce4abdb7d642e7cfd649c2535571ba903")
     # Maintenance releases (even numbers)
+    version("5.42.2", sha256="9384e8deb75b7b1695e5637971b752281aaecd025a3d5d4734d33c1d0adfee47")
     version("5.42.0", sha256="e093ef184d7f9a1b9797e2465296f55510adb6dab8842b0c3ed53329663096dc")
     version("5.40.2", sha256="10d4647cfbb543a7f9ae3e5f6851ec49305232ea7621aed24c7cfbb0bef4b70d")
     version("5.40.0", sha256="c740348f357396327a9795d3e8323bafd0fe8a5c7835fc1cbaba0cc8dfe7161f")
@@ -241,6 +242,14 @@ class Perl(Package):  # Perl doesn't use Autotools, it should subclass Package
         # Development versions have an odd second component
         if spec.version.isdevelop() or (spec.version[1] % 2 == 1):
             config_args.append("-Dusedevel")
+
+        # The macOS 27 SDK exposes these functions as weak imports when
+        # targeting older macOS releases. Perl's Configure mistakes that for
+        # runtime availability and the resulting binary calls through NULL.
+        deployment_target = os.environ.get("MACOSX_DEPLOYMENT_TARGET")
+        if spec.satisfies("platform=darwin") and deployment_target:
+            if int(deployment_target.split(".", 1)[0]) < 27:
+                config_args.extend(["-Ud_dup3", "-Ud_pipe2"])
 
         return config_args
 

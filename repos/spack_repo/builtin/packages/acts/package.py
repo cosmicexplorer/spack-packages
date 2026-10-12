@@ -87,7 +87,7 @@ class Acts(CMakePackage, CudaPackage):
     variant(
         "benchmarks", default=False, description="Build the performance benchmarks", when="@0.16:"
     )
-    _cxxstd_values = (conditional("20", when="@24:"),)
+    _cxxstd_values = (conditional("20", when="@24:"), conditional("23", when="@46:"))
     _cxxstd_common = {
         "values": _cxxstd_values,
         "multi": False,
@@ -216,11 +216,11 @@ class Acts(CMakePackage, CudaPackage):
     depends_on("geant4", when="+geant4")
     depends_on("geomodel @6.3.0: +geomodelg4", when="+geomodel")
     depends_on("geomodel @6.8.0:", when="@43.1: +geomodel ")
-    depends_on("git-lfs", when="@12.0.0:")
     depends_on("gperftools", when="+profilecpu")
     depends_on("gperftools", when="+profilemem")
     depends_on("hepmc3 @3.2.1:", when="+hepmc3")
     depends_on("hepmc3 @3.2.4:", when="@42: +hepmc3")
+    depends_on("hepmc3 +rootio", when="@45.1: +hepmc3 +examples +root")
     depends_on("intel-tbb @2020.1:", when="+examples")
     depends_on("millepede@01-00-00:", when="+mille")
     depends_on("nlohmann-json @3.10.5:", when="+json")
@@ -337,6 +337,7 @@ class Acts(CMakePackage, CudaPackage):
             plugin_cmake_variant("PODIO", "podio"),
             example_cmake_variant("PYTHIA8", "pythia8"),
             example_cmake_variant("PYTHON_BINDINGS", "python"),
+            example_cmake_variant("ROOT", "root"),
             self.define_from_variant("ACTS_CUSTOM_SCALARTYPE", "scalar"),
             plugin_cmake_variant("ACTSVG", "svg"),
             plugin_cmake_variant("TGEO", "root"),
@@ -384,3 +385,8 @@ class Acts(CMakePackage, CudaPackage):
         args.append(self.define_from_variant("CMAKE_CXX_STANDARD", "cxxstd"))
 
         return args
+
+    def setup_run_environment(self, env: EnvironmentModifications) -> None:
+        # Acts installs in non-standard python path
+        if self.spec.satisfies("+python"):
+            env.prepend_path("PYTHONPATH", self.prefix.python)

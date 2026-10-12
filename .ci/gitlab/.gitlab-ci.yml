@@ -59,6 +59,7 @@ default:
 ########################################
 .base-job:
   variables:
+    SPACK_CI_BUILDCACHE_VIEW: "append"
     PIPELINE_MIRROR_TEMPLATE: "single-src-protected-mirrors.yaml.in"
     SPACK_CI_CONFIG_ROOT: "${SPACK_CI_PACKAGES_ROOT}/.ci/gitlab/configs"
     SPACK_CI_SCRIPTS_ROOT: "${SPACK_CI_PACKAGES_ROOT}/.ci/gitlab/scripts"
@@ -152,6 +153,8 @@ default:
       - runner_unsupported
       - stale_schedule
       - job_execution_timeout
+      - server_timeout_running
+      - server_timeout_canceling
       - archived_failure
       - unmet_prerequisites
       - scheduler_failure
@@ -527,7 +530,7 @@ radiuss-build:
 .tags-x86_64_v4:
   variables:
     SPACK_CI_TARGET: "x86_64_v4"
-  tags: ["spack", "public", "aws", "medium", "x86_64_v4"]
+  tags: ["spack", "public", "medium", "x86_64_v4"]
 
 # Parallel Pipeline for aarch64 (reuses override image, but generates and builds on aarch64)
 

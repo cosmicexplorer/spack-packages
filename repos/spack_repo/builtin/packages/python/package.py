@@ -60,7 +60,7 @@ class Python(Package):
     version("develop", branch="main")
     version("3.14.5", sha256="9c22bfe9939a6c5418fc74b289a5f1cc41859ae82ac6b163016b5844bd0a86bc")
     version("3.13.13", sha256="f9cde7b0e2ec8165d7326e2a0f59ea2686ce9d0c617dbbb3d66a7e54d31b74b9")
-    version("3.12.13", sha256="0816c4761c97ecdb3f50a3924de0a93fd78cb63ee8e6c04201ddfaedca500b0b")
+    version("3.12.14", sha256="6c6df908d2c3fd24e6d76869e92542abd0f33aec9dfc18df8875f89660286d43")
     version("3.11.15", sha256="f4de1b10bd6c70cbb9fa1cd71fc5038b832747a74ee59d599c69ce4846defb50")
     version("3.10.20", sha256="4ff5fd4c5bab803b935019f3e31d7219cebd6f870d00389cea53b88bbe935d1a")
     version("3.9.24", sha256="9a32cfc683aecaadbd9ed891ac2af9451ff37f48a00a2d8e1f4ecd9c2a1ffdcb")
@@ -108,6 +108,9 @@ class Python(Package):
         )
         version(
             "3.13.0", sha256="12445c7b3db3126c41190bfdc1c8239c39c719404e844babbd015a1bc3fafcd4"
+        )
+        version(
+            "3.12.13", sha256="0816c4761c97ecdb3f50a3924de0a93fd78cb63ee8e6c04201ddfaedca500b0b"
         )
         version(
             "3.12.12", sha256="487c908ddf4097a1b9ba859f25fe46d22ccaabfb335880faac305ac62bffb79b"
@@ -239,7 +242,7 @@ class Python(Package):
         depends_on("pkgconfig", type="build")
         depends_on("gettext +libxml2", when="+libxml2")
         depends_on("iconv", when="~libxml2")
-        depends_on("gettext ~libxml2", when="~libxml2 ^[virtuals=iconv]gettext")
+        depends_on("gettext ~libxml2", when="~libxml2 ^[virtuals=iconv] libiconv")
 
         # Optional dependencies
         # See detect_modules() in setup.py for details
@@ -314,6 +317,10 @@ class Python(Package):
         patch("disable-curses-nis.patch")
         conflicts('+ssl',
                   msg="ssl searching is broken for 3.5 for some reason")
+
+    # Fix bad prompt in virtual-env in 3.12
+    # https://github.com/python/cpython/issues/132361
+    patch("python-3.12.10+-fix132361.patch", when="@3.12.10:3.12")
 
     # CPython tries to build an Objective-C file with GCC's C frontend
     # https://github.com/spack/spack/pull/16222
@@ -782,6 +789,14 @@ class Python(Package):
             else:
                 options = getattr(self, "configure_flag_args", [])
                 options += ["--prefix={0}".format(prefix)]
+
+                # Python drives Autoconf directly instead of using AutotoolsBuilder.
+                # Keep its macOS availability cache consistent with that builder.
+                deployment_target = os.environ.get("MACOSX_DEPLOYMENT_TARGET")
+                if spec.satisfies("platform=darwin") and deployment_target:
+                    if int(deployment_target.split(".", 1)[0]) < 27:
+                        options += ["ac_cv_func_dup3=no", "ac_cv_func_pipe2=no"]
+
                 options += self.configure_args()
                 configure(*options)
 

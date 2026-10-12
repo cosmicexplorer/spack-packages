@@ -156,7 +156,7 @@ class NodeJs(Package):
     depends_on("zlib-api", when="+zlib")
 
     # https://github.com/nodejs/node/blob/main/BUILDING.md#supported-toolchains
-    conflicts("%gcc@:12.1", when="@23:")
+    conflicts("%gcc@:12", when="@23:")
     conflicts("%gcc@:10.0", when="@20:")
     conflicts("%gcc@:8.2", when="@16:")
     conflicts("%gcc@:6.2", when="@12:")
@@ -258,6 +258,11 @@ class NodeJs(Package):
                     "--shared-openssl",
                     "--shared-openssl-includes={0}".format(self.spec["openssl"].prefix.include),
                     "--shared-openssl-libpath={0}".format(self.spec["openssl"].prefix.lib),
+                    # Always prefer the CA store from our OpenSSL dependency
+                    # over the bundled Mozilla snapshot.  The OPENSSLDIR baked
+                    # into the shared library already points to the right certs
+                    # (mozilla, system, or none) as chosen by the openssl spec.
+                    "--openssl-use-def-ca-store",
                 ]
             )
 

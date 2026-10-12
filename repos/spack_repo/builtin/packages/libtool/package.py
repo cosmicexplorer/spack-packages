@@ -135,7 +135,7 @@ class Libtool(AutotoolsPackage, GNUMirrorPackage):
         self, env: EnvironmentModifications, dependent_spec: Spec
     ) -> None:
         self._setup_exe_env_vars(env)
-        env.append_path("ACLOCAL_PATH", self._self_pfx.share.aclocal)
+        env.prepend_path("ACLOCAL_PATH", self.prefix.share.aclocal)
 
     def setup_dependent_package(self, module, dependent_spec):
         # Automake is very likely to be a build dependency, so we add

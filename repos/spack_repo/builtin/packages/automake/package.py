@@ -23,6 +23,7 @@ class Automake(AutotoolsPackage, GNUMirrorPackage):
 
     license("GPL-2.0-or-later")
 
+    version("1.19", sha256="79e8b1f7a967e87ce8a9ded76bee7f793d0ce1886ab2002feb1b0510f578b75a")
     version("1.18-git", tag="v1.18",
             commit="f00e7a046bcbec6a23f8663508f6a12a9fc0299a")
     version("develop", branch="master")

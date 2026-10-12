@@ -160,6 +160,7 @@ class QtBase(QtPackage):
 
     license("BSD-3-Clause")
 
+    version("6.11.2", sha256="06cd7aa6b3ab19cb5a1664a2891ef0df960f78c97fa31b80b1d6d7ee70688414")
     version("6.11.1", sha256="e20852bd45cdef5da5175f3634e285e03e2be7ca437f3d2b7e1a2af7321bca7a")
     version("6.10.2", sha256="95271bc1f32db239723f597ab1899e624e3b22a16678b88520dee51ad5035faa")
     version("6.10.1", sha256="088c248d7dfbcba1e60fc4fa7a46406c6c638687cd3dbd412cdd13fc21198df9")
@@ -201,6 +202,9 @@ class QtBase(QtPackage):
     variant("gui", default=True, description="Build the Qt GUI module and dependencies.")
     variant("shared", default=True, description="Build shared libraries.")
     variant("sql", default=True, description="Build with SQL support.")
+    variant("sqlite", default=True, description="Build with SQLite support.", when="+sql")
+    variant("mysql", default=False, description="Build with MySQL/MariaDB support.", when="+sql")
+    variant("postgresql", default=False, description="Build with PostgreSQL support.", when="+sql")
     variant("network", default=False, description="Build with SSL support.")
 
     # GUI-only dependencies
@@ -234,12 +238,16 @@ class QtBase(QtPackage):
     depends_on("dbus", when="+dbus")
     depends_on("gl", when="+opengl", type=("build", "link"))
     depends_on("glu", when="+opengl", type=("build", "link"))
-    depends_on("sqlite", when="+sql")
+    depends_on("glx", when="+opengl platform=linux", type=("build", "link"))
+    depends_on("sqlite", when="+sqlite")
+    depends_on("mysql-client", when="+mysql")
+    depends_on("postgresql", when="+postgresql")
 
+    # see qt/qtbase/src/gui/configure.cmake for dependencies and versions
     with when("+gui"):
         depends_on("fontconfig")
-        depends_on("freetype")
-        depends_on("harfbuzz")
+        depends_on("freetype@2.2:")
+        depends_on("harfbuzz@2.6:")
         depends_on("jpeg")
         depends_on("libpng")
         with when("platform=linux"):
@@ -314,6 +322,9 @@ class QtBase(QtPackage):
                 # thread: default to on
                 self.define_qt_feature_from_variant("widgets"),  # note: private feature
                 self.define_qt_feature_from_variant("sql"),  # note: private feature
+                self.define_qt_feature_from_variant("sql_sqlite", "sqlite"),
+                self.define_qt_feature_from_variant("sql_mysql", "mysql"),
+                self.define_qt_feature_from_variant("sql_psql", "postgresql"),
                 # xml: default to on
             ]
         )

@@ -101,6 +101,8 @@ class Gettext(AutotoolsPackage, GNUMirrorPackage):
         # this goes together with gl_cv_libxml_force_included=no
         if name == "ldflags" and self.spec.satisfies("+libxml2"):
             flags.append("-lxml2")
+        if name == "cflags" and self.spec.satisfies("%intel"):
+            flags.append("-std=c11")
         return (flags, None, None)
 
     @classmethod
@@ -129,9 +131,10 @@ class Gettext(AutotoolsPackage, GNUMirrorPackage):
         else:
             config_args.append("--with-included-gettext")
 
-        # Until we know why we need them, do not build D sources:
+        # Until we know why we need them, do not build D or modula2 sources:
         if spec.satisfies("@0.25:"):
             config_args.append("--disable-d")
+            config_args.append("--disable-modula2")
 
         config_args.extend(self.enable_or_disable("shared"))
 

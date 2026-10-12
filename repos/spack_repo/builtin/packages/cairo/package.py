@@ -111,6 +111,7 @@ class Cairo(AutotoolsPackage, MesonPackage):
     depends_on("freetype", when="+ft")
     depends_on("libpng", when="+png")
     depends_on("glib", when="+gobject")
+    depends_on("pixman@0.30.0:")
     depends_on("pixman@0.36.0:", when="@1.17.2:")
     depends_on("fontconfig@2.10.91:", when="+fc")
     depends_on("zlib-api", when="+zlib")
@@ -147,21 +148,27 @@ class Cairo(AutotoolsPackage, MesonPackage):
     # Don't regenerate docs to avoid a dependency on gtk-doc
     patch("disable-gtk-docs.patch", when="build_system=autotools")
 
+    def flag_handler(self, name, flags):
+        # gcc@15: defaults to -std=gnu23, causing errors with "typedef int bool;"
+        if name == "cflags" and self.spec.satisfies("build_system=autotools %gcc@15:"):
+            flags.append("-std=gnu17")
+        return (flags, None, None)
+
 
 class MesonBuilder(meson.MesonBuilder):
     def meson_args(self):
         return [
-            self.enable_from_variant("dwrite"),
-            self.enable_from_variant("fontconfig", variant="ft"),
-            self.enable_from_variant("freetype", variant="fc"),
-            self.enable_from_variant("png"),
-            self.enable_from_variant("quartz"),
-            self.enable_from_variant("tee"),
-            self.enable_from_variant("xcb", variant="X"),
-            self.enable_from_variant("xlib", variant="X"),
-            self.enable_from_variant("xlib-xcb", variant="X"),
-            self.enable_from_variant("zlib"),
-            self.enable_from_variant("glib", variant="gobject"),
+            self.enable_or_disable("dwrite"),
+            self.enable_or_disable("fontconfig", variant="ft"),
+            self.enable_or_disable("freetype", variant="fc"),
+            self.enable_or_disable("png"),
+            self.enable_or_disable("quartz"),
+            self.enable_or_disable("tee"),
+            self.enable_or_disable("xcb", variant="X"),
+            self.enable_or_disable("xlib", variant="X"),
+            self.enable_or_disable("xlib-xcb", variant="X"),
+            self.enable_or_disable("zlib"),
+            self.enable_or_disable("glib", variant="gobject"),
             self.define("spectre", False),
             self.define("symbol-lookup", False),
         ]

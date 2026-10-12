@@ -19,8 +19,13 @@ class Scotch(CMakePackage, MakefilePackage):
     url = "https://gitlab.inria.fr/scotch/scotch/-/archive/v7.0.1/scotch-v7.0.1.tar.gz"
     list_url = "https://gforge.inria.fr/frs/?group_id=248"
 
-    maintainers("AlexanderRichert-NOAA", "climbfuji")
+    maintainers("AlexanderRichert-NOAA", "jcortial-safran")
 
+    version("7.0.16", sha256="76557a986c2bbcc08a122e21113f77266e08b584bc2d2d3a0dede39572d1af78")
+    version("7.0.15", sha256="5f8b558caa30eb5455fd896b763ad911822281c402e76b4afcd17c64eebc2898")
+    version("7.0.14", sha256="35e9d27edba28497876be3c338ff2ac5fa2835a3f15ce8196085f3cb669491b1")
+    version("7.0.13", sha256="6457d1f177fce9c07324b8c57ad1086402b0e61bd9ecf5c30b2b481944ea8fe7")
+    version("7.0.12", sha256="870bf681e7e40b6b01c3890dbe7b27da2617660f1722541919a865a6729dcbf2")
     version("7.0.11", sha256="ce1ea6e16ca36ae91426a360f639c8f575fccebc0116fbcb381f164c5e862768")
     version("7.0.10", sha256="8327725a08cdd4fc7575e291251883b4f93f75b07a54bc58f89f50dcbba7b244")
     version("7.0.9", sha256="6d50c3f66e3e0e2058bce45ed9eee171fd8d6c01123c802a98544948a1c3d5d1")
@@ -174,6 +179,9 @@ class CMakeBuilder(cmake.CMakeBuilder):
 
         if self.spec.satisfies("@7.0.7:"):
             args.append(self.define_from_variant("SCOTCH_DETERMINISTIC", "determinism"))
+
+        if self.spec.satisfies("@7.0.9:"):
+            args.append(self.define_from_variant("BUILD_FORTRAN", "fortran"))
 
         if "+int64" in self.spec:
             args.append("-DINTSIZE=64")
